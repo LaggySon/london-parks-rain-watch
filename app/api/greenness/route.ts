@@ -59,32 +59,107 @@ function londonToday() {
   }).format(new Date());
 }
 
-async function fetchJson(url: string) {
+/**
+ * A reply, described well enough to diagnose from the outside.
+ *
+ * The first version of this returned `await response.json()` and threw bare strings, which
+ * cost a production outage: `/api/greenness` answered 503 "no daily data returned" from
+ * Vercel while the identical URL returned 108 days of weather from a laptop, and nothing in
+ * the response said what the upstream had actually sent. Keeping the status, the content
+ * type, the size and the top-level keys turns that from a guess into a fact.
+ */
+type Reply = {
+  ok: boolean;
+  status: number;
+  contentType: string;
+  bytes: number;
+  payload: any;
+  parseError: string | null;
+  snippet: string;
+};
+
+async function fetchReply(url: string): Promise<Reply> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const response = await fetch(url, { signal: controller.signal, cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
+    const text = await response.text();
+    let payload: any = null;
+    let parseError: string | null = null;
+    try {
+      payload = text.length ? JSON.parse(text) : null;
+    } catch (error) {
+      parseError = String((error as Error).message);
+    }
+    return {
+      ok: response.ok,
+      status: response.status,
+      contentType: response.headers.get("content-type") ?? "(none)",
+      bytes: text.length,
+      payload,
+      parseError,
+      // Enough of the body to recognise a rate-limit notice or an interstitial, and short
+      // enough to be safe to show: these URLs carry no credentials.
+      snippet: text.slice(0, 200).replace(/\s+/g, " ").trim(),
+    };
   } finally {
     clearTimeout(timer);
   }
 }
 
+/** One line saying what came back, for an error message or the diagnostics block. */
+function describe(reply: Reply) {
+  const keys = reply.payload && typeof reply.payload === "object"
+    ? Object.keys(reply.payload).join(",") : "(not an object)";
+  return [
+    `HTTP ${reply.status}`,
+    reply.contentType.split(";")[0],
+    `${reply.bytes}b`,
+    reply.parseError ? `unparseable: ${reply.parseError}` : `keys=${keys}`,
+    // Open-Meteo explains refusals in `reason`; anything else, quote the body.
+    reply.payload?.reason ? `reason=${reply.payload.reason}`
+      : (reply.payload?.daily ? "" : `body=${reply.snippet}`),
+  ].filter(Boolean).join(" ");
+}
+
+async function fetchJson(url: string) {
+  const reply = await fetchReply(url);
+  if (!reply.ok || reply.parseError) throw new Error(describe(reply));
+  return reply.payload;
+}
+
+const WEATHER_BASE = "https://api.open-meteo.com/v1/forecast"
+  + `?latitude=${LATITUDE}&longitude=${LONGITUDE}`
+  + "&daily=precipitation_sum,et0_fao_evapotranspiration,temperature_2m_max,temperature_2m_mean"
+  + `&timezone=Europe%2FLondon&past_days=${HISTORY_DAYS}&forecast_days=16`;
+const SOIL_HOURLY = "&hourly=soil_moisture_0_to_7cm,soil_moisture_7_to_28cm";
+
 /**
  * One call covers both halves of the question: `past_days` gives the weather that made the
  * ground what it is, `forecast_days` what is still to come. Hourly soil moisture rides
  * along as an independent check on the modelled water balance.
+ *
+ * The daily series is load-bearing and the hourly soil moisture is not — it only anchors and
+ * audits the balance — so the two are allowed to fail separately. If the combined request
+ * comes back without a daily series, the daily half is asked for again on its own rather than
+ * taking the whole model down with it; a park with no anchor is still worth reporting, a park
+ * with no weather is not.
  */
 async function fetchWeather() {
-  const url = "https://api.open-meteo.com/v1/forecast"
-    + `?latitude=${LATITUDE}&longitude=${LONGITUDE}`
-    + "&daily=precipitation_sum,et0_fao_evapotranspiration,temperature_2m_max,temperature_2m_mean"
-    + "&hourly=soil_moisture_0_to_7cm,soil_moisture_7_to_28cm"
-    + `&timezone=Europe%2FLondon&past_days=${HISTORY_DAYS}&forecast_days=16`;
-  const payload = await fetchJson(url);
+  const attempts: string[] = [];
+  const ask = async (label: string, url: string) => {
+    const reply = await fetchReply(url);
+    attempts.push(`${label}: ${describe(reply)}`);
+    return reply;
+  };
+
+  let reply = await ask("daily+hourly", WEATHER_BASE + SOIL_HOURLY);
+  if (!reply.payload?.daily?.time?.length) {
+    reply = await ask("daily only", WEATHER_BASE);
+  }
+  const payload = reply.payload;
   const daily = payload?.daily;
-  if (!daily?.time?.length) throw new Error("no daily data returned");
+  if (!daily?.time?.length) throw new Error(`no daily data returned — ${attempts.join(" | ")}`);
 
   const series: Daily[] = daily.time.map((date: string, i: number) => ({
     date,
@@ -106,7 +181,12 @@ async function fetchWeather() {
     });
   });
 
-  return { series, noon, units: payload?.hourly_units?.soil_moisture_0_to_7cm ?? "m³/m³" };
+  return {
+    series,
+    noon,
+    units: payload?.hourly_units?.soil_moisture_0_to_7cm ?? "m³/m³",
+    attempts,
+  };
 }
 
 /** Per-member daily rainfall for one ensemble model, keyed by date. */
@@ -140,17 +220,26 @@ export async function GET() {
     ...ENSEMBLES.map((model) => fetchEnsemble(model)),
   ]);
 
+  // Failures get a short cache of their own. Without one, every visitor to a broken page
+  // starts a fresh invocation that fails the same way, which is how a quiet outage turns
+  // into a loud one.
+  const failed = (error: string) => NextResponse.json({ error }, {
+    status: 503,
+    headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60" },
+  });
+
   if (weather.status === "rejected") {
     const reason = weather.reason?.name === "AbortError"
       ? "timed out" : String(weather.reason?.message ?? weather.reason);
-    return NextResponse.json({ error: `weather unavailable: ${reason}` }, { status: 503 });
+    return failed(`weather unavailable: ${reason}`);
   }
 
-  const { series, noon, units } = weather.value;
+  const { series, noon, units, attempts } = weather.value;
   const history = series.filter((day) => day.date < today);
   const forecast = series.filter((day) => day.date >= today && day.date < ARRIVAL);
   if (!history.length || !forecast.length) {
-    return NextResponse.json({ error: "forecast window is empty" }, { status: 503 });
+    return failed(`forecast window is empty — ${series.length} days returned,`
+      + ` ${series[0]?.date} to ${series[series.length - 1]?.date}, today ${today}`);
   }
 
   // --- soil moisture: initialises the spin-up and then audits its answer
@@ -372,6 +461,14 @@ export async function GET() {
       } : null,
     },
     hosepipeBan: HOSEPIPE_BAN,
+    // What each upstream call actually returned. Cheap to carry, and the only way to tell a
+    // healthy answer from one that quietly lost its soil-moisture anchor - or to diagnose a
+    // deployment that behaves differently from a laptop, which has already happened once.
+    diagnostics: {
+      weather: attempts,
+      soilMoistureReadings: noon.filter((entry) => entry.shallow != null).length,
+      anchored: noon.some((entry) => entry.shallow != null),
+    },
     parks,
     model: {
       greenThreshold: MODEL.GREEN_THRESHOLD,

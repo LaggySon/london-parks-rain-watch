@@ -2038,9 +2038,14 @@ svg {
       els.statGreen.textContent = "—";
       els.statSit.textContent = "—";
       els.statGreenProb.textContent = "—";
+      // The slider re-reads pre-computed curves from the model, so with no model it can only
+      // move its own label. Better to disable it than to let it imply an answer it cannot give.
+      els.rain.disabled = true;
+      els.whatIf.textContent = "The what-if slider needs the model, which could not be reached.";
       canvas.setAttribute("aria-label", "Three-dimensional model of " + park.name + "; green cover not yet loaded.");
       return;
     }
+    els.rain.disabled = false;
 
     const shown = coverage();
     const arrival = new Date(greenData.arrival + "T00:00:00")
@@ -2082,10 +2087,13 @@ svg {
       ? "no single fall in the past " + c.historyDays + " days reached the "
         + c.wettingThresholdMm + " mm it takes to wet the soil through the grass canopy"
       : "last soil-wetting rain was " + c.daysSinceSoilWetting + " days ago";
+    // The reading is an independent check on the balance, not part of it, so it can be
+    // absent without invalidating anything above — say nothing rather than say "null".
+    const topsoil = c.soilMoisture.shallow == null
+      ? "" : " Topsoil now " + c.soilMoisture.shallow + " " + c.soilMoisture.units + ".";
     return "Past " + c.historyDays + " days: " + c.rain90.toFixed(1) + " mm of rain against "
       + c.et090.toFixed(0) + " mm of evaporation, a " + Math.abs(c.balance90).toFixed(0)
-      + " mm deficit. " + since.charAt(0).toUpperCase() + since.slice(1)
-      + ". Topsoil now " + c.soilMoisture.shallow + " " + c.soilMoisture.units + ".";
+      + " mm deficit. " + since.charAt(0).toUpperCase() + since.slice(1) + "." + topsoil;
   }
 
   function needLine(state) {
