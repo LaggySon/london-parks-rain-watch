@@ -1,0 +1,2060 @@
+<!doctype html>
+<html lang="en" data-visualize-standalone>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>London Parks Rain 3d</title>
+<style>:root {
+  color-scheme: light dark;
+  background-color: transparent !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --main-surface-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: light-dark(rgb(26 28 31), rgb(255 255 255));
+  --card: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --card-foreground: var(--foreground);
+  --popover: light-dark(rgb(255 255 255), rgb(45 45 45));
+  --popover-foreground: var(--foreground);
+  --primary: light-dark(rgb(51 156 255), rgb(131 195 255));
+  --primary-foreground: light-dark(rgb(255 255 255), rgb(13 13 13));
+  --secondary: light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: light-dark(
+    rgb(26 28 31 / 49.4%),
+    rgb(255 255 255 / 49.8%)
+  );
+  --accent: light-dark(rgb(229 242 255), rgb(13 39 63));
+  --accent-foreground: var(--primary);
+  --destructive: light-dark(rgb(226 85 7), rgb(255 133 73));
+  --border: light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%));
+  --input: light-dark(
+    rgb(26 28 31 / 11.8%),
+    color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+  );
+  --ring: light-dark(rgb(51 156 255), rgb(131 195 255 / 76%));
+  --font-size-base: 14px;
+  --red: light-dark(rgb(186 38 35), rgb(250 66 62));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, "Segoe UI", sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: 10px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Cpath d='M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z'/%3E%3C/svg%3E");
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+  --color-background-primary: var(--background);
+  --color-text-primary: var(--foreground);
+  --color-border-secondary: var(--border);
+}
+
+:root[data-visualize-standalone] {
+  background-color: var(--background) !important;
+}
+
+/* Generic mobile code-block hosts provide light/dark mode but no series palette.
+   AppBlock hosts set all six variables themselves. */
+:root:not([data-app-block-surface]) {
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(#f3883b, #f59a56);
+  --viz-series-3: light-dark(#5dc977, #74d58b);
+  --viz-series-4: light-dark(#eb77b1, #f08fc0);
+  --viz-series-5: light-dark(#9b79ec, #aa91ef);
+  --viz-series-6: light-dark(#3ab9b1, #5acbc2);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html > body {
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+:root:not([data-app-block-surface]) > body {
+  padding: 12px;
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive > .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align="right"]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align="center"]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget > :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The bundled tooltip runtime owns [data-tooltip]. AppBlock's CSS-only
+   pseudo-tooltip can widen dense grids even while hidden. */
+main [data-tooltip]::after {
+  content: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls > .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls > .form-label > :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--interactive-label-primary-default, var(--primary-foreground));
+  background: var(--interactive-bg-primary-default, var(--foreground));
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(
+    in srgb,
+    var(--interactive-label-primary-default, var(--primary-foreground)) 50%,
+    transparent
+  );
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type="file"] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type="file"]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type="file"]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type="color"] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type="checkbox"]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: "";
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type="radio"]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: "";
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed="true"],
+    [aria-selected="true"],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed="true"], [aria-selected="true"], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget > svg {
+  width: 100%;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+</style>
+</head>
+<body>
+<div id="london-parks-rain-3d">
+  <div class="viz-row top-line">
+    <span class="viz-badge" id="lrp-window">Forecast window: Aug 12–27</span>
+    <span class="text-small text-muted" id="lrp-live-status">Checking the five latest forecasts…</span>
+    <button class="btn btn-ghost" type="button" id="lrp-refresh">Check now</button>
+  </div>
+
+  <div class="viz-controls park-picker" aria-label="Choose a park">
+    <button class="btn btn-primary" type="button" data-park="hyde" aria-pressed="true">Hyde Park</button>
+    <button class="btn" type="button" data-park="st-james" aria-pressed="false">St James’s</button>
+    <button class="btn" type="button" data-park="regent" aria-pressed="false">Regent’s Park</button>
+    <button class="btn" type="button" data-park="kensington" aria-pressed="false">Kensington Gardens</button>
+    <button class="btn" type="button" data-park="greenwich" aria-pressed="false">Greenwich Park</button>
+  </div>
+
+  <div class="scene-wrap">
+    <canvas id="lrp-canvas" role="img" aria-label="Three-dimensional rainfall model of Hyde Park"></canvas>
+    <div class="scene-compass" aria-hidden="true">N ↑</div>
+    <div class="scene-key text-small" id="lrp-scene-key">Serpentine · Rotten Row · Rose Garden · Speakers’ Corner</div>
+    <div class="scene-error text-destructive" id="lrp-error" hidden>Three-dimensional view could not load.</div>
+  </div>
+
+  <div class="viz-controls model-controls">
+    <label class="form-label source-control" for="lrp-source">
+      Forecast
+      <select class="form-select" id="lrp-source">
+        <option value="ensemble">Weighted ensemble</option>
+        <option value="met">Met Office (UKMO)</option>
+        <option value="time">Timeanddate</option>
+        <option value="network">Weather Network</option>
+        <option value="weather25">Weather25</option>
+        <option value="ecmwf">ECMWF IFS</option>
+      </select>
+    </label>
+    <label class="form-label rain-control" for="lrp-rain">
+      Rain shown: <strong><span id="lrp-rain-value">12.7</span> mm</strong>
+      <input class="form-range" id="lrp-rain" type="range" min="0" max="40" step="0.1" value="12.7">
+    </label>
+    <div class="viz-row rotate-controls" aria-label="Rotate park model">
+      <button class="btn btn-ghost" type="button" id="lrp-left" aria-label="Rotate left"><i data-lucide="rotate-ccw" aria-hidden="true"></i> Left</button>
+      <button class="btn btn-ghost" type="button" id="lrp-right" aria-label="Rotate right"><i data-lucide="rotate-cw" aria-hidden="true"></i> Right</button>
+      <button class="btn btn-ghost" type="button" id="lrp-view" aria-pressed="false">Plan view</button>
+    </div>
+  </div>
+
+  <div class="viz-grid model-stats">
+    <div class="card viz-stat">
+      <span class="text-muted">Rain shown</span>
+      <span class="viz-stat-value" id="lrp-stat-rain">12.7 mm</span>
+      <span class="text-small" id="lrp-source-label">Weighted expected amount</span>
+    </div>
+    <div class="card viz-stat">
+      <span class="text-muted">Enough-rain probability</span>
+      <span class="viz-stat-value" id="lrp-stat-rain-prob">58.25%</span>
+      <span class="text-small">Before or early in the trip</span>
+    </div>
+    <div class="card viz-stat">
+      <span class="text-muted">Some-green probability</span>
+      <span class="viz-stat-value" id="lrp-stat-green-prob">64.1%</span>
+      <span class="text-small" id="lrp-park-label">Hyde Park model</span>
+    </div>
+  </div>
+
+  <div class="park-summary" aria-live="polite">
+    <strong id="lrp-summary-name">Hyde Park</strong>
+    <span id="lrp-summary-detail">Serpentine, Long Water, Rotten Row and the southeast Rose Garden · 57% modeled green coverage at 12.7 mm</span>
+  </div>
+
+  <div class="table-responsive forecast-table-wrap">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Forecast source</th>
+          <th class="text-end">Rain input</th>
+          <th class="text-end">Enough-rain chance</th>
+          <th class="text-end">Model weight</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr data-source-row="met">
+          <td><a href="https://weather.metoffice.gov.uk/long-range-forecast" target="_blank" rel="noreferrer">Met Office (UKMO)</a></td>
+          <td class="text-end">8.0 mm</td>
+          <td class="text-end">55%</td>
+          <td class="text-end">35%</td>
+        </tr>
+        <tr data-source-row="time">
+          <td><a href="https://www.timeanddate.com/weather/uk/london/ext" target="_blank" rel="noreferrer">Timeanddate</a></td>
+          <td class="text-end">15.2 mm</td>
+          <td class="text-end">75%</td>
+          <td class="text-end">20%</td>
+        </tr>
+        <tr data-source-row="network">
+          <td><a href="https://www.theweathernetwork.com/en/city/gb/greater-london/london/14-days" target="_blank" rel="noreferrer">Weather Network</a></td>
+          <td class="text-end">34.5 mm</td>
+          <td class="text-end">90%</td>
+          <td class="text-end">15%</td>
+        </tr>
+        <tr data-source-row="weather25">
+          <td><a href="https://www.weather25.com/europe/united-kingdom/london?page=day" target="_blank" rel="noreferrer">Weather25</a></td>
+          <td class="text-end">10.6 mm</td>
+          <td class="text-end">65%</td>
+          <td class="text-end">10%</td>
+        </tr>
+        <tr data-source-row="ecmwf">
+          <td><a href="https://open-meteo.com/en/docs/ecmwf-api" target="_blank" rel="noreferrer">ECMWF IFS</a></td>
+          <td class="text-end">3.0 mm</td>
+          <td class="text-end">20%</td>
+          <td class="text-end">20%</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <th>Weighted ensemble</th>
+          <th class="text-end">12.7 mm</th>
+          <th class="text-end">58.25%</th>
+          <th class="text-end">100%</th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <div class="text-small text-muted footnote">Rain input is each source&rsquo;s own total across the days it actually covers; the ensemble converts every source to a daily rate before weighting, so a short-range model is not penalised for stopping early. Park appearance and green probabilities are estimates, not official forecasts.</div>
+
+  <span class="palette-swatch palette-dry" id="lrp-palette-dry" aria-hidden="true"></span>
+  <span class="palette-swatch palette-green" id="lrp-palette-green" aria-hidden="true"></span>
+  <span class="palette-swatch palette-water" id="lrp-palette-water" aria-hidden="true"></span>
+  <span class="palette-swatch palette-path" id="lrp-palette-path" aria-hidden="true"></span>
+  <span class="palette-swatch palette-structure" id="lrp-palette-structure" aria-hidden="true"></span>
+  <span class="palette-swatch palette-trunk" id="lrp-palette-trunk" aria-hidden="true"></span>
+  <span class="palette-swatch palette-flower" id="lrp-palette-flower" aria-hidden="true"></span>
+  <span class="palette-swatch palette-highlight" id="lrp-palette-highlight" aria-hidden="true"></span>
+</div>
+
+<style>
+  #london-parks-rain-3d {
+    color: var(--foreground);
+    display: grid;
+    gap: .9rem;
+  }
+
+  #london-parks-rain-3d .top-line {
+    justify-content: space-between;
+  }
+
+  #london-parks-rain-3d .park-picker {
+    justify-content: center;
+  }
+
+  #london-parks-rain-3d .scene-wrap {
+    position: relative;
+    min-height: 390px;
+    overflow: hidden;
+    border-block: 1px solid var(--border);
+    background: radial-gradient(circle at 50% 55%, var(--card), transparent 64%);
+  }
+
+  #london-parks-rain-3d #lrp-canvas {
+    display: block;
+    width: 100%;
+    height: 390px;
+    touch-action: none;
+  }
+
+  #london-parks-rain-3d .scene-error {
+    position: absolute;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  #london-parks-rain-3d .scene-compass,
+  #london-parks-rain-3d .scene-key {
+    position: absolute;
+    z-index: 2;
+    background: color-mix(in srgb, var(--card) 86%, transparent);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+    backdrop-filter: blur(8px);
+  }
+
+  #london-parks-rain-3d .scene-compass {
+    inset: .75rem .75rem auto auto;
+    border-radius: 999px;
+    padding: .35rem .55rem;
+    font-weight: 700;
+  }
+
+  #london-parks-rain-3d .scene-key {
+    inset: auto auto .7rem .7rem;
+    max-width: calc(100% - 1.4rem);
+    border-radius: .55rem;
+    padding: .4rem .6rem;
+  }
+
+  #london-parks-rain-3d .model-controls {
+    display: grid;
+    grid-template-columns: minmax(180px, .8fr) minmax(240px, 1.4fr) auto;
+    align-items: end;
+  }
+
+  #london-parks-rain-3d .source-control,
+  #london-parks-rain-3d .rain-control {
+    display: grid;
+    gap: .35rem;
+  }
+
+  #london-parks-rain-3d .rotate-controls {
+    justify-content: flex-end;
+  }
+
+  #london-parks-rain-3d .model-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #london-parks-rain-3d .park-summary {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: .4rem 1rem;
+  }
+
+  #london-parks-rain-3d .forecast-table-wrap {
+    margin-top: .2rem;
+  }
+
+  #london-parks-rain-3d tr.is-selected {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  #london-parks-rain-3d .footnote {
+    margin-top: -.35rem;
+  }
+
+  #london-parks-rain-3d .palette-swatch {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #london-parks-rain-3d .palette-dry { background: var(--viz-series-4); }
+  #london-parks-rain-3d .palette-green { background: var(--green); }
+  #london-parks-rain-3d .palette-water { background: var(--viz-series-1); }
+  #london-parks-rain-3d .palette-path { background: var(--muted); }
+  #london-parks-rain-3d .palette-structure { background: var(--secondary); }
+  #london-parks-rain-3d .palette-trunk { background: var(--viz-series-5); }
+  #london-parks-rain-3d .palette-flower { background: var(--viz-series-2); }
+  #london-parks-rain-3d .palette-highlight { background: var(--viz-series-3); }
+
+  @media (max-width: 650px) {
+    #london-parks-rain-3d .scene-wrap {
+      min-height: 330px;
+    }
+
+    #london-parks-rain-3d #lrp-canvas {
+      height: 330px;
+    }
+
+    #london-parks-rain-3d .model-controls {
+      grid-template-columns: 1fr;
+    }
+
+    #london-parks-rain-3d .rotate-controls {
+      justify-content: flex-start;
+    }
+
+    #london-parks-rain-3d .model-stats {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  const root = document.getElementById("london-parks-rain-3d");
+  if (!root) return;
+
+  const canvas = root.querySelector("#lrp-canvas");
+  const errorBox = root.querySelector("#lrp-error");
+  if (!window.THREE) {
+    errorBox.hidden = false;
+    canvas.hidden = true;
+    return;
+  }
+
+  const THREE = window.THREE;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function cssColor(id) {
+    return getComputedStyle(root.querySelector(id)).backgroundColor;
+  }
+
+  const colors = {
+    dry: new THREE.Color(cssColor("#lrp-palette-dry")),
+    green: new THREE.Color(cssColor("#lrp-palette-green")),
+    water: new THREE.Color(cssColor("#lrp-palette-water")),
+    path: new THREE.Color(cssColor("#lrp-palette-path")),
+    structure: new THREE.Color(cssColor("#lrp-palette-structure")),
+    trunk: new THREE.Color(cssColor("#lrp-palette-trunk")),
+    flower: new THREE.Color(cssColor("#lrp-palette-flower")),
+    highlight: new THREE.Color(cssColor("#lrp-palette-highlight"))
+  };
+
+  const forecasts = {
+    ensemble: { label: "Weighted ensemble · updated Aug 12", amount: 12.675, probability: 58.25 },
+    met: { label: "Met Office (UKMO) · baseline", amount: 8, probability: 55 },
+    time: { label: "Timeanddate · baseline", amount: 15.2, probability: 75 },
+    network: { label: "Weather Network · baseline", amount: 34.5, probability: 90 },
+    weather25: { label: "Weather25 · baseline", amount: 10.6, probability: 65 },
+    ecmwf: { label: "ECMWF IFS · baseline", amount: 3, probability: 20 }
+  };
+
+  const parks = {
+    hyde: {
+      name: "Hyde Park",
+      detail: "Serpentine, Long Water, Rotten Row and the southeast Rose Garden",
+      landmarks: "Serpentine · Rotten Row · Rose Garden · Speakers’ Corner",
+      baseCoverage: 18,
+      response: 3.1,
+      maxCoverage: 88,
+      greenIfRain: 85,
+      greenIfDry: 35,
+      type: "hyde",
+      boundary: [[-3.45,-1.55],[-2.7,-1.82],[2.72,-1.73],[3.36,-1.2],[3.33,1.35],[2.8,1.72],[-2.85,1.78],[-3.52,1.2]]
+    },
+    "st-james": {
+      name: "St James’s Park",
+      detail: "Curving lake between Buckingham Palace, The Mall and Horse Guards",
+      landmarks: "Buckingham Palace · Blue Bridge · Duck Island · Horse Guards",
+      baseCoverage: 50,
+      response: 2.1,
+      maxCoverage: 96,
+      greenIfRain: 96,
+      greenIfDry: 70,
+      type: "st-james",
+      boundary: [[-3.42,-1.1],[-2.55,-1.46],[2.65,-1.26],[3.4,-.74],[3.25,.95],[2.62,1.34],[-2.58,1.42],[-3.46,.86]]
+    },
+    regent: {
+      name: "Regent’s Park",
+      detail: "Outer Circle, Queen Mary’s Gardens, boating lake and northern zoo edge",
+      landmarks: "Queen Mary’s Gardens · Boating Lake · Broad Walk · Open Air Theatre",
+      baseCoverage: 38,
+      response: 2.4,
+      maxCoverage: 94,
+      greenIfRain: 92,
+      greenIfDry: 55,
+      type: "regent",
+      boundary: [[-2.75,-1.82],[1.92,-1.85],[3.12,-1.12],[3.43,.35],[2.72,1.62],[1.15,1.92],[-1.95,1.78],[-3.2,.95],[-3.45,-.35]]
+    },
+    kensington: {
+      name: "Kensington Gardens",
+      detail: "Kensington Palace, Round Pond, formal avenues and the Long Water",
+      landmarks: "Kensington Palace · Round Pond · Long Water · Albert Memorial",
+      baseCoverage: 45,
+      response: 2.2,
+      maxCoverage: 95,
+      greenIfRain: 92,
+      greenIfDry: 58,
+      type: "kensington",
+      boundary: [[-3.18,-1.66],[2.25,-1.86],[3.1,-1.25],[3.34,.2],[2.78,1.67],[-2.72,1.82],[-3.42,.9],[-3.4,-.9]]
+    },
+    greenwich: {
+      name: "Greenwich Park",
+      detail: "Steep observatory hill, axial avenues and open view toward Queen’s House",
+      landmarks: "Royal Observatory · General Wolfe · Queen’s House axis · Flower Garden",
+      baseCoverage: 28,
+      response: 2.8,
+      maxCoverage: 90,
+      greenIfRain: 88,
+      greenIfDry: 45,
+      type: "greenwich",
+      boundary: [[-2.92,-1.84],[2.68,-1.82],[3.26,-1.1],[3.12,1.54],[2.42,1.89],[-2.55,1.75],[-3.27,1.08],[-3.36,-1.14]]
+    }
+  };
+
+  const els = {
+    source: root.querySelector("#lrp-source"),
+    rain: root.querySelector("#lrp-rain"),
+    rainValue: root.querySelector("#lrp-rain-value"),
+    statRain: root.querySelector("#lrp-stat-rain"),
+    sourceLabel: root.querySelector("#lrp-source-label"),
+    statRainProb: root.querySelector("#lrp-stat-rain-prob"),
+    statGreenProb: root.querySelector("#lrp-stat-green-prob"),
+    parkLabel: root.querySelector("#lrp-park-label"),
+    summaryName: root.querySelector("#lrp-summary-name"),
+    summaryDetail: root.querySelector("#lrp-summary-detail"),
+    sceneKey: root.querySelector("#lrp-scene-key"),
+    left: root.querySelector("#lrp-left"),
+    right: root.querySelector("#lrp-right"),
+    view: root.querySelector("#lrp-view"),
+    parkButtons: Array.from(root.querySelectorAll("[data-park]")),
+    sourceRows: Array.from(root.querySelectorAll("[data-source-row]"))
+  };
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+  camera.position.set(8.2, 6.4, 9.2);
+  camera.lookAt(0, 0, 0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 0);
+
+  const parkGroup = new THREE.Group();
+  parkGroup.rotation.y = -0.3;
+  scene.add(parkGroup);
+
+  let selectedParkKey = "hyde";
+  let selectedForecastKey = "ensemble";
+  let rainAmount = forecasts.ensemble.amount;
+  let lawnMesh = null;
+  let grassBladeMesh = null;
+  let moistureThresholds = [];
+  let bladeThresholds = [];
+  let surfaceVariation = [];
+  let bladeVariation = [];
+  let rainPoints = null;
+  let dragging = false;
+  let previousX = 0;
+  let planView = false;
+
+  function material(color, options) {
+    return new THREE.MeshBasicMaterial(Object.assign({ color }, options || {}));
+  }
+
+  function addBox(group, x, y, z, width, height, depth, color, rotationY) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material(color));
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = rotationY || 0;
+    group.add(mesh);
+    return mesh;
+  }
+
+  function addOval(group, x, z, width, depth, color, y, rotationY, opacity) {
+    const mesh = new THREE.Mesh(new THREE.CircleGeometry(1, 48), material(colors.water, { transparent: true, opacity: 0.82 }));
+    mesh.material.color.copy(color);
+    mesh.material.opacity = opacity === undefined ? 1 : opacity;
+    mesh.scale.set(width, depth, 1);
+    mesh.rotation.set(-Math.PI / 2, 0, rotationY || 0);
+    mesh.position.set(x, y, z);
+    group.add(mesh);
+    return mesh;
+  }
+
+  function shapeFrom(points) {
+    const shape = new THREE.Shape();
+    points.forEach((point, index) => {
+      if (index === 0) shape.moveTo(point[0], point[1]);
+      else shape.lineTo(point[0], point[1]);
+    });
+    shape.closePath();
+    return shape;
+  }
+
+  function addShape(group, points, y, color, opacity) {
+    const mesh = new THREE.Mesh(
+      new THREE.ShapeGeometry(shapeFrom(points)),
+      material(color, { transparent: opacity < 1, opacity, side: THREE.DoubleSide })
+    );
+    mesh.rotation.x = Math.PI / 2;
+    mesh.position.y = y;
+    group.add(mesh);
+    return mesh;
+  }
+
+  function addOutline(group, points, y, color) {
+    const positions = [];
+    points.concat([points[0]]).forEach((point) => positions.push(point[0], y, point[1]));
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: .6 }));
+    group.add(line);
+  }
+
+  function addStrip(group, points, width, y, color) {
+    for (let i = 1; i < points.length; i += 1) {
+      const a = points[i - 1];
+      const b = points[i];
+      const dx = b[0] - a[0];
+      const dz = b[1] - a[1];
+      const length = Math.hypot(dx, dz);
+      addBox(group, (a[0] + b[0]) / 2, y, (a[1] + b[1]) / 2, length, .025, width, color, -Math.atan2(dz, dx));
+    }
+  }
+
+  function addRing(group, x, z, radius, tube, color, y, scaleZ) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 7, 56), material(color));
+    ring.rotation.x = Math.PI / 2;
+    ring.scale.z = scaleZ || 1;
+    ring.position.set(x, y, z);
+    group.add(ring);
+    return ring;
+  }
+
+  function heightAt(park, x, z) {
+    if (park.type !== "greenwich") return .08;
+    const slope = Math.max(0, Math.min(1, (z + 1.8) / 3.5));
+    const hill = .16 * Math.exp(-((x * x) + (z - .55) * (z - .55)) / 2.2);
+    return .08 + slope * .32 + hill;
+  }
+
+  function addTree(group, park, x, z, scale, crownColor) {
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.065, 0.42, 7), material(colors.trunk));
+    trunk.position.y = 0.38;
+    const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(0.24 * scale, 1), material(crownColor || colors.green));
+    crown.position.y = 0.72;
+    tree.position.set(x, heightAt(park, x, z), z);
+    tree.add(trunk, crown);
+    group.add(tree);
+  }
+
+  function addTreeLine(group, park, points, count, scale, offset) {
+    let placed = 0;
+    for (let segment = 1; segment < points.length; segment += 1) {
+      const a = points[segment - 1];
+      const b = points[segment];
+      const perSegment = Math.max(2, Math.round(count / (points.length - 1)));
+      for (let i = 0; i < perSegment; i += 1) {
+        const t = i / perSegment;
+        const wobble = Math.sin((placed + 2) * 4.13) * (offset || 0);
+        addTree(group, park, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t + wobble, scale * (.86 + (placed % 4) * .06));
+        placed += 1;
+      }
+    }
+  }
+
+  function pointInside(point, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+      const xi = polygon[i][0];
+      const zi = polygon[i][1];
+      const xj = polygon[j][0];
+      const zj = polygon[j][1];
+      const intersects = ((zi > point[1]) !== (zj > point[1])) && (point[0] < (xj - xi) * (point[1] - zi) / (zj - zi) + xi);
+      if (intersects) inside = !inside;
+    }
+    return inside;
+  }
+
+  function hash(value) {
+    return Math.abs((Math.sin(value * 12.9898) * 43758.5453) % 1);
+  }
+
+  function grassField(park, x, z, seed) {
+    const broad = Math.sin(x * 1.12 + z * .76 + seed) * .55;
+    const cross = Math.cos(x * .58 - z * 1.67 + seed * .41) * .3;
+    const fine = Math.sin(x * 3.8 + z * 2.9 + seed * 1.7) * .15;
+    return broad + cross + fine;
+  }
+
+  function percentileRanks(values) {
+    const ranked = values.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value);
+    const result = new Array(values.length);
+    ranked.forEach((item, rank) => {
+      result[item.index] = values.length > 1 ? rank * 100 / (values.length - 1) : 50;
+    });
+    return result;
+  }
+
+  function excludesGrass(park, x, z) {
+    if (park.type === "hyde") return x > -1.7 && x < 2.75 && Math.abs(z - (.22 - x * .12)) < .27;
+    if (park.type === "st-james") return x > -2.5 && x < 2.55 && Math.abs(z - Math.sin(x * 1.3) * .12) < .34;
+    if (park.type === "regent") return x > .35 && x < 2.3 && z < -.42 && z > -1.52;
+    if (park.type === "kensington") {
+      const roundPond = ((x + .72) * (x + .72)) / .56 + ((z - .2) * (z - .2)) / .27 < 1;
+      return roundPond || (x > 1.55 && x < 2.58);
+    }
+    return false;
+  }
+
+  function createGrassSurface(group, park) {
+    const positions = [];
+    const fieldValues = [];
+    surfaceVariation = [];
+    const step = .155;
+    let cellIndex = 0;
+    for (let z = -1.9; z < 1.9; z += step) {
+      for (let x = -3.5; x < 3.5; x += step) {
+        const center = [x + step / 2, z + step / 2];
+        if (!pointInside(center, park.boundary)) continue;
+        const corners = [[x,z],[x+step,z],[x+step,z+step],[x,z],[x+step,z+step],[x,z+step]];
+        corners.forEach((point, cornerIndex) => {
+          positions.push(point[0], heightAt(park, point[0], point[1]) + .012, point[1]);
+          fieldValues.push(grassField(park, point[0], point[1], park.baseCoverage * .037));
+          surfaceVariation.push(hash(cellIndex * 7 + cornerIndex + park.baseCoverage) * 2 - 1);
+        });
+        cellIndex += 1;
+      }
+    }
+    moistureThresholds = percentileRanks(fieldValues);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(positions.length), 3));
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    group.add(mesh);
+    lawnMesh = mesh;
+  }
+
+  function createGrassBlades(group, park) {
+    const bladePositions = [];
+    for (let i = 0; i < 2600 && bladePositions.length < 1650; i += 1) {
+      const x = -3.5 + hash(i * 2.17 + park.baseCoverage) * 7;
+      const z = -1.9 + hash(i * 4.73 + 91 + park.baseCoverage) * 3.8;
+      if (pointInside([x, z], park.boundary) && !excludesGrass(park, x, z)) bladePositions.push([x, z]);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute([
+      -.014,0,0, .014,0,0, 0,.115,0,
+      0,0,-.014, 0,0,.014, 0,.115,0
+    ], 3));
+    const mesh = new THREE.InstancedMesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), bladePositions.length);
+    const dummy = new THREE.Object3D();
+    const fieldValues = [];
+    bladeVariation = [];
+    bladePositions.forEach((point, index) => {
+      const heightScale = .62 + hash(index * 3.41 + 7) * .76;
+      const widthScale = .72 + hash(index * 8.13 + 3) * .55;
+      dummy.position.set(point[0], heightAt(park, point[0], point[1]) + .01, point[1]);
+      dummy.rotation.set(0, hash(index * 9.7) * Math.PI, (hash(index * 6.2) - .5) * .14);
+      dummy.scale.set(widthScale, heightScale, widthScale);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(index, dummy.matrix);
+      fieldValues.push(grassField(park, point[0], point[1], park.baseCoverage * .037));
+      bladeVariation.push(hash(index * 5.91 + park.baseCoverage) * 2 - 1);
+    });
+    bladeThresholds = percentileRanks(fieldValues);
+    mesh.instanceMatrix.needsUpdate = true;
+    group.add(mesh);
+    grassBladeMesh = mesh;
+  }
+
+  function addBase(group, park) {
+    const baseColor = colors.dry.clone().lerp(colors.green, Math.min(park.baseCoverage / 130, 0.45));
+    addShape(group, park.boundary, .02, baseColor, 1);
+    addOutline(group, park.boundary, .045, colors.structure);
+    createGrassSurface(group, park);
+    createGrassBlades(group, park);
+  }
+
+  function addFormalBed(group, x, z, radius, color) {
+    addOval(group, x, z, radius, radius * .66, color, .12, 0, .92);
+    addRing(group, x, z, radius, .025, colors.path, .135, .66);
+  }
+
+  function addBuilding(group, park, x, z, width, depth, height, roofColor) {
+    const y = heightAt(park, x, z);
+    addBox(group, x, y + height / 2, z, width, height, depth, colors.structure, 0);
+    addBox(group, x, y + height + .035, z, width * 1.05, .07, depth * 1.05, roofColor || colors.trunk, 0);
+  }
+
+  function addMonument(group, park, x, z, scale) {
+    const y = heightAt(park, x, z);
+    addBox(group, x, y + .05, z, .28 * scale, .1, .28 * scale, colors.structure, 0);
+    const column = new THREE.Mesh(new THREE.CylinderGeometry(.045 * scale, .065 * scale, .48 * scale, 9), material(colors.highlight));
+    column.position.set(x, y + .34 * scale, z);
+    group.add(column);
+  }
+
+  function addPerimeterTrees(group, park, scale) {
+    addTreeLine(group, park, park.boundary.concat([park.boundary[0]]), 46, scale, .035);
+  }
+
+  function decorateHyde(group, park) {
+    addShape(group, [[-1.55,.55],[-1.1,.76],[-.35,.78],[.3,.6],[.9,.52],[1.5,.3],[2.25,.12],[2.62,-.12],[2.35,-.35],[1.62,-.32],[.95,-.12],[.25,.02],[-.4,.2],[-1.08,.22]], .105, colors.water, .86);
+    addStrip(group, [[-2.85,-1.23],[-1.2,-1.28],[.5,-1.35],[2.62,-1.42]], .12, .12, colors.path);
+    addStrip(group, [[-3.05,1.12],[-1.4,.72],[.15,.18],[2.9,-.72]], .075, .125, colors.path);
+    addStrip(group, [[-2.6,-1.55],[-2.15,-.4],[-1.65,.58],[-1.35,1.52]], .07, .125, colors.path);
+    addRing(group, .8, -.58, .31, .055, colors.path, .13, .62);
+    addFormalBed(group, 2.45, -1.02, .34, colors.flower);
+    addFormalBed(group, 2.17, -1.28, .22, colors.highlight);
+    addMonument(group, park, -3.05, 1.3, .8);
+    [[-1.4,1.05],[-1.1,1.05],[-1.4,1.3],[-1.1,1.3]].forEach((p) => addOval(group, p[0], p[1], .1, .06, colors.water, .115, 0, .8));
+    addPerimeterTrees(group, park, .9);
+    addTreeLine(group, park, [[-2.7,-.9],[-1.8,-.35],[-1.4,.65]], 12, .92, .05);
+  }
+
+  function decorateStJames(group, park) {
+    addStrip(group, [[-3.15,1.03],[-.8,1.06],[1.4,.98],[3.1,.82]], .18, .11, colors.highlight);
+    addShape(group, [[-2.3,.18],[-1.75,.5],[-.9,.48],[-.15,.23],[.6,.15],[1.48,.32],[2.12,.16],[2.45,-.12],[2.06,-.35],[1.35,-.4],[.55,-.25],[-.2,-.18],[-.88,-.3],[-1.65,-.2]], .11, colors.water, .88);
+    addOval(group, -.45, .2, .28, .12, colors.green, .125, -.2, 1);
+    addOval(group, 1.52, .1, .2, .11, colors.green, .125, .2, 1);
+    addStrip(group, [[.38,-.66],[.32,.68]], .13, .155, colors.structure);
+    addBuilding(group, park, -3.08, -.1, .6, .92, .42, colors.highlight);
+    addBuilding(group, park, 3.02, .05, .55, .78, .38, colors.trunk);
+    addMonument(group, park, -2.65, -.08, .8);
+    addPerimeterTrees(group, park, .88);
+    addTreeLine(group, park, [[-2.45,-.72],[-.8,-.72],[.9,-.65],[2.5,-.58]], 25, .86, .04);
+  }
+
+  function decorateRegent(group, park) {
+    addRing(group, -.08, .05, 2.55, .055, colors.path, .11, .66);
+    addRing(group, -.85, -.18, .83, .045, colors.path, .12, .72);
+    addShape(group, [[.55,-1.18],[1.1,-1.42],[1.88,-1.36],[2.2,-1.05],[2.06,-.62],[1.45,-.48],[.78,-.62],[.46,-.9]], .115, colors.water, .86);
+    addStrip(group, [[2.45,-1.25],[2.5,.05],[2.45,1.35]], .11, .13, colors.path);
+    addStrip(group, [[-2.55,-.2],[-1.65,-.2],[-.85,-.18],[.2,-.05],[1.25,.12]], .075, .13, colors.path);
+    addFormalBed(group, -.85, -.18, .52, colors.flower);
+    addFormalBed(group, -.85, -.18, .28, colors.highlight);
+    addFormalBed(group, -.28, -.15, .2, colors.flower);
+    for (let i = 0; i < 5; i += 1) addBuilding(group, park, -1.95 + i * .9, 1.48, .5, .25, .2, i % 2 ? colors.trunk : colors.highlight);
+    const theatre = new THREE.Mesh(new THREE.TorusGeometry(.42, .045, 7, 28, Math.PI), material(colors.structure));
+    theatre.rotation.set(Math.PI / 2, 0, .25);
+    theatre.position.set(-2.02, .14, .65);
+    group.add(theatre);
+    addPerimeterTrees(group, park, .93);
+  }
+
+  function decorateKensington(group, park) {
+    addShape(group, [[1.7,-1.56],[2.1,-1.42],[2.42,-.98],[2.35,-.35],[2.5,.2],[2.4,.82],[2.05,1.48],[1.72,1.58],[1.62,.95],[1.78,.42],[1.62,-.08],[1.76,-.62]], .11, colors.water, .88);
+    addOval(group, -.72, .2, .72, .5, colors.water, .11, 0, .87);
+    addBuilding(group, park, -2.72, .36, .72, .88, .48, colors.highlight);
+    addBox(group, -2.72, .39, -.22, .25, .64, .22, colors.structure, 0);
+    addStrip(group, [[-3.05,-1.12],[-1.8,-.58],[-.72,.2],[.58,.85],[1.95,1.35]], .09, .13, colors.path);
+    addStrip(group, [[-2.85,1.38],[-1.15,.82],[.5,.28],[2.25,-.32]], .075, .13, colors.path);
+    addStrip(group, [[-2.8,-.95],[-1.2,-.95],[.45,-1.08],[2.15,-1.3]], .105, .13, colors.path);
+    addMonument(group, park, 1.38, -1.34, 1.15);
+    [[1.72,1.3],[1.93,1.3],[1.72,1.05],[1.93,1.05]].forEach((p, i) => addOval(group, p[0], p[1], .11, .07, i % 2 ? colors.flower : colors.water, .125, 0, .9));
+    addPerimeterTrees(group, park, .96);
+    addTreeLine(group, park, [[-2.5,-.8],[-.8,-.42],[.8,.25],[1.8,.7]], 25, .94, .04);
+  }
+
+  function decorateGreenwich(group, park) {
+    addShape(group, [[-3,-.2],[3.05,-.2],[3.08,.42],[-3.12,.42]], .18, colors.green.clone().lerp(colors.dry, .15), .55);
+    addShape(group, [[-2.85,.42],[2.85,.42],[2.75,1.03],[-2.9,1.03]], .31, colors.green.clone().lerp(colors.dry, .1), .5);
+    addShape(group, [[-2.55,1.03],[2.5,1.03],[2.35,1.58],[-2.58,1.55]], .43, colors.green, .4);
+    addStrip(group, [[0,-1.6],[0,-.5],[0,.58],[0,1.42]], .16, .47, colors.path);
+    addStrip(group, [[-2.45,-1.15],[-1.35,-.48],[0,.15],[1.4,.75],[2.45,1.25]], .08, .43, colors.path);
+    addBuilding(group, park, 0, .85, .86, .58, .5, colors.trunk);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(.2, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), material(colors.water));
+    dome.position.set(.16, heightAt(park, .16, .85) + .73, .85);
+    group.add(dome);
+    addMonument(group, park, 0, .28, .95);
+    addBuilding(group, park, 0, -1.48, .72, .48, .22, colors.highlight);
+    addFormalBed(group, 2.05, .82, .5, colors.flower);
+    addRing(group, 2.05, .82, .72, .045, colors.path, .47, .76);
+    addShape(group, [[-2.65,.75],[-1.65,.68],[-1.58,1.48],[-2.5,1.52]], .46, colors.path, .38);
+    addPerimeterTrees(group, park, 1.02);
+    addTreeLine(group, park, [[-1.25,-1.5],[-.72,-.35],[-.35,.8]], 18, 1, .06);
+    addTreeLine(group, park, [[1.25,-1.5],[.72,-.35],[.35,.8]], 18, 1, .06);
+  }
+
+  function addRain(group) {
+    const count = 180;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i += 1) {
+      positions[i * 3] = -3.5 + Math.abs(Math.sin(i * 19.31)) * 7;
+      positions[i * 3 + 1] = 0.65 + Math.abs(Math.sin(i * 7.17)) * 3.3;
+      positions[i * 3 + 2] = -2.1 + Math.abs(Math.cos(i * 11.73)) * 4.2;
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setDrawRange(0, 0);
+    const points = new THREE.Points(geometry, new THREE.PointsMaterial({ color: colors.water, size: 0.045, transparent: true, opacity: 0.68 }));
+    group.add(points);
+    rainPoints = points;
+  }
+
+  function disposeGroup(group) {
+    while (group.children.length) {
+      const child = group.children.pop();
+      child.traverse((item) => {
+        if (item.geometry) item.geometry.dispose();
+        if (item.material) {
+          const materials = Array.isArray(item.material) ? item.material : [item.material];
+          materials.forEach((itemMaterial) => itemMaterial.dispose());
+        }
+      });
+    }
+  }
+
+  function coverageFor(park, amount) {
+    return Math.min(park.maxCoverage, park.baseCoverage + amount * park.response);
+  }
+
+  function greenProbability(park, rainProbability) {
+    const p = rainProbability / 100;
+    return p * park.greenIfRain + (1 - p) * park.greenIfDry;
+  }
+
+  function updateLawn() {
+    if (!lawnMesh) return;
+    const park = parks[selectedParkKey];
+    const coverage = coverageFor(park, rainAmount);
+    const wetColor = colors.green.clone().lerp(colors.water, .035);
+    const dryColor = colors.dry.clone().lerp(colors.trunk, .07);
+    const surfaceColors = lawnMesh.geometry.getAttribute("color");
+    moistureThresholds.forEach((threshold, index) => {
+      const softness = Math.max(0, Math.min(1, (coverage - threshold + 18) / 36));
+      const tone = surfaceVariation[index] * .045;
+      const localDry = dryColor.clone().offsetHSL(0, 0, tone);
+      const localWet = wetColor.clone().offsetHSL(0, 0, tone * .7);
+      const mixed = localDry.lerp(localWet, softness);
+      surfaceColors.setXYZ(index, mixed.r, mixed.g, mixed.b);
+    });
+    surfaceColors.needsUpdate = true;
+    if (grassBladeMesh) {
+      bladeThresholds.forEach((threshold, index) => {
+        const softness = Math.max(0, Math.min(1, (coverage - threshold + 14) / 28));
+        const tone = bladeVariation[index] * .055;
+        const bladeDry = dryColor.clone().offsetHSL(0, 0, tone - .02);
+        const bladeWet = wetColor.clone().offsetHSL(0, 0, tone);
+        grassBladeMesh.setColorAt(index, bladeDry.lerp(bladeWet, softness));
+      });
+      if (grassBladeMesh.instanceColor) grassBladeMesh.instanceColor.needsUpdate = true;
+    }
+    if (rainPoints) {
+      const visibleDrops = Math.round(Math.min(180, rainAmount * 6));
+      rainPoints.geometry.setDrawRange(0, visibleDrops);
+    }
+    renderer.render(scene, camera);
+    updateLabels();
+  }
+
+  function buildPark() {
+    disposeGroup(parkGroup);
+    const park = parks[selectedParkKey];
+    addBase(parkGroup, park);
+    if (park.type === "hyde") decorateHyde(parkGroup, park);
+    if (park.type === "st-james") decorateStJames(parkGroup, park);
+    if (park.type === "regent") decorateRegent(parkGroup, park);
+    if (park.type === "kensington") decorateKensington(parkGroup, park);
+    if (park.type === "greenwich") decorateGreenwich(parkGroup, park);
+    addRain(parkGroup);
+    updateLawn();
+    if (!reducedMotion) {
+      const start = performance.now();
+      parkGroup.scale.setScalar(0.94);
+      const animate = (now) => {
+        const t = Math.min(1, (now - start) / 260);
+        const eased = 1 - Math.pow(1 - t, 3);
+        parkGroup.scale.setScalar(0.94 + 0.06 * eased);
+        renderer.render(scene, camera);
+        if (t < 1) requestAnimationFrame(animate);
+      };
+      requestAnimationFrame(animate);
+    }
+  }
+
+  function updateLabels() {
+    const park = parks[selectedParkKey];
+    const forecast = forecasts[selectedForecastKey];
+    const coverage = coverageFor(park, rainAmount);
+    const probability = greenProbability(park, forecast.probability);
+    els.rainValue.textContent = rainAmount.toFixed(1);
+    els.statRain.textContent = rainAmount.toFixed(1) + " mm";
+    els.sourceLabel.textContent = forecast.label;
+    els.statRainProb.textContent = forecast.probability.toFixed(2).replace(/\.00$/, "") + "%";
+    els.statGreenProb.textContent = probability.toFixed(1) + "%";
+    els.parkLabel.textContent = park.name + " model";
+    els.summaryName.textContent = park.name;
+    els.summaryDetail.textContent = park.detail + " · " + Math.round(coverage) + "% modeled green coverage at " + rainAmount.toFixed(1) + " mm";
+    els.sceneKey.textContent = park.landmarks;
+    canvas.setAttribute("aria-label", "Three-dimensional rainfall model of " + park.name + ", showing " + Math.round(coverage) + " percent green lawn coverage with " + rainAmount.toFixed(1) + " millimetres of rain.");
+  }
+
+  function selectPark(key) {
+    selectedParkKey = key;
+    els.parkButtons.forEach((button) => {
+      const selected = button.dataset.park === key;
+      button.setAttribute("aria-pressed", String(selected));
+      button.classList.toggle("btn-primary", selected);
+    });
+    buildPark();
+  }
+
+  function selectForecast(key) {
+    selectedForecastKey = key;
+    const forecast = forecasts[key];
+    rainAmount = forecast.amount;
+    els.rain.value = forecast.amount.toFixed(1);
+    els.sourceRows.forEach((row) => row.classList.toggle("is-selected", row.dataset.sourceRow === key));
+    updateLawn();
+  }
+
+  function rotate(delta) {
+    parkGroup.rotation.y += delta;
+    renderer.render(scene, camera);
+  }
+
+  function setView() {
+    planView = !planView;
+    els.view.setAttribute("aria-pressed", String(planView));
+    els.view.textContent = planView ? "Perspective" : "Plan view";
+    if (planView) {
+      camera.position.set(0, 10.5, .01);
+      camera.lookAt(0, 0, 0);
+      parkGroup.rotation.y = 0;
+    } else {
+      camera.position.set(8.2, 6.4, 9.2);
+      camera.lookAt(0, 0, 0);
+      parkGroup.rotation.y = -.3;
+    }
+    renderer.render(scene, camera);
+  }
+
+  function resize() {
+    const width = Math.max(1, canvas.clientWidth);
+    const height = Math.max(1, canvas.clientHeight);
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+  }
+
+  els.parkButtons.forEach((button) => button.addEventListener("click", () => selectPark(button.dataset.park)));
+  els.source.addEventListener("change", () => selectForecast(els.source.value));
+  els.rain.addEventListener("input", () => {
+    rainAmount = Number(els.rain.value);
+    updateLawn();
+  });
+  els.left.addEventListener("click", () => rotate(-0.22));
+  els.right.addEventListener("click", () => rotate(0.22));
+  els.view.addEventListener("click", setView);
+
+  async function refreshForecasts() {
+    const status = root.querySelector("#lrp-live-status");
+    const button = root.querySelector("#lrp-refresh");
+    button.disabled = true;
+    status.textContent = "Checking the five latest forecasts…";
+    try {
+      const response = await fetch("/api/forecast", { cache: "no-store" });
+      if (!response.ok) throw new Error("Forecast service unavailable");
+      const data = await response.json();
+      forecasts.ensemble = { label: "Weighted ensemble · " + data.liveSources + "/5 live · " + data.window.days + " days to " + data.tripStart, amount: data.amount, probability: data.probability };
+      Object.entries(data.sources).forEach(([key, source]) => {
+        const note = source.status === "live"
+          ? "live · covers " + source.coverage
+          : "verified baseline · " + (source.reason || "unavailable");
+        forecasts[key] = { label: source.label + " · " + note, amount: source.amount, probability: source.probability };
+        const row = root.querySelector('[data-source-row="' + key + '"]');
+        if (row) {
+          const cells = row.querySelectorAll("td");
+          cells[1].textContent = source.amount.toFixed(1) + " mm";
+          cells[2].textContent = source.probability.toFixed(0) + "%";
+          const link = cells[0].querySelector("a");
+          link.textContent = source.label;
+          link.href = source.url;
+          let tag = cells[0].querySelector(".source-note");
+          if (!tag) {
+            tag = document.createElement("div");
+            tag.className = "source-note text-small text-muted";
+            cells[0].appendChild(tag);
+          }
+          tag.textContent = note;
+        }
+      });
+      const span = (iso) => new Date(iso + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" });
+      root.querySelector("#lrp-window").textContent = "Forecast window: " + span(data.window.from) + " – " + span(data.window.to);
+      const foot = root.querySelector("tfoot tr").children;
+      foot[1].textContent = data.amount.toFixed(1) + " mm";
+      foot[2].textContent = data.probability.toFixed(2).replace(/\.00$/, "") + "%";
+      status.textContent = "Updated " + new Date(data.updatedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) + " · " + data.liveSources + "/5 live";
+      selectForecast(selectedForecastKey);
+    } catch (error) {
+      status.textContent = "Could not refresh · showing last verified forecast";
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  root.querySelector("#lrp-refresh").addEventListener("click", refreshForecasts);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshForecasts();
+  });
+
+  canvas.addEventListener("pointerdown", (event) => {
+    dragging = true;
+    previousX = event.clientX;
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    const delta = (event.clientX - previousX) * 0.008;
+    previousX = event.clientX;
+    rotate(delta);
+  });
+  canvas.addEventListener("pointerup", (event) => {
+    dragging = false;
+    canvas.releasePointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("pointercancel", () => { dragging = false; });
+
+  const observer = new ResizeObserver(resize);
+  observer.observe(canvas);
+  window.addEventListener("pagehide", () => {
+    observer.disconnect();
+    disposeGroup(parkGroup);
+    renderer.dispose();
+  }, { once: true });
+
+  buildPark();
+  resize();
+  refreshForecasts();
+})();
+</script>
+
+<script id="codex-visualization-floating-ui-core" src="https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js"></script>
+<script id="codex-visualization-floating-ui-dom" src="https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js"></script>
+<script id="codex-visualization-lucide" async src="https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js"></script>
+<script id="codex-visualization-tooltip">/* oxlint-disable typescript/no-unsafe-argument, typescript/no-unsafe-call, typescript/no-unsafe-return */
+// Runs inside the visualization sandbox, not the host webview.
+(() => {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set(["top", "right", "bottom", "left"]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =>
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest("[data-tooltip]")
+      : null;
+  const containsTarget = (trigger, target) =>
+    target?.nodeType != null && trigger.contains(target);
+  const getContent = (trigger) =>
+    trigger.getAttribute("data-tooltip")?.trim() ?? "";
+  const getPlacement = (trigger) => {
+    const placement = trigger.getAttribute("data-tooltip-placement");
+    return tooltipPlacements.has(placement) ? placement : "top";
+  };
+  const getTooltip = () => {
+    if (tooltip == null) {
+      tooltip = document.createElement("div");
+      tooltip.id = tooltipId;
+      tooltip.className = "tooltip";
+      tooltip.setAttribute("role", "tooltip");
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) => {
+    const ids = new Set(
+      (trigger.getAttribute("aria-describedby") ?? "")
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute("aria-describedby");
+    } else {
+      trigger.setAttribute("aria-describedby", [...ids].join(" "));
+    }
+  };
+  const clearOpenTimeout = () => {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) => {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) => {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              "--tooltip-available-width",
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              "--tooltip-available-height",
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: "fixed",
+    })
+      .then(({ x, y }) => {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = "visible";
+      })
+      .catch(() => {
+        if (activeTrigger === trigger && request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) => {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = "hidden";
+    floating.style.transform = "translate(0, 0)";
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () => {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) => {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() < skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() => {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) => {
+    if (event.pointerType === "touch") {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) => {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) => {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(":focus-visible")) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape") {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) => {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () => {
+    closeTooltip(false);
+    document.removeEventListener("pointerover", handlePointerOpen);
+    document.removeEventListener("pointerout", handleLeave);
+    document.removeEventListener("focusin", handleFocusIn);
+    document.removeEventListener("focusout", handleLeave);
+    document.removeEventListener("keydown", handleKeyDown);
+    document.removeEventListener("contextmenu", handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener("pointerover", handlePointerOpen);
+  document.addEventListener("pointerout", handleLeave);
+  document.addEventListener("focusin", handleFocusIn);
+  document.addEventListener("focusout", handleLeave);
+  document.addEventListener("keydown", handleKeyDown);
+  document.addEventListener("contextmenu", handleContextMenu);
+  window.addEventListener("pagehide", destroy, { once: true });
+})();
+</script>
+<script id="codex-visualization-lucide-initialization">(() => {
+  const initialize = () => {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById("codex-visualization-lucide")
+    ?.addEventListener("load", initialize, { once: true });
+})();
+</script>
+</body>
+</html>
