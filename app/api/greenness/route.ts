@@ -172,22 +172,41 @@ function weatherUrl(withHourly: boolean) {
 }
 
 /**
- * The same URL built the two other plausible ways, reported but never sent.
+ * A byte-faithful replica of the URL that broke production, at module level where the
+ * original was — reported, never sent.
  *
- * Kept only until the cause is confirmed in production: it says which construction loses the
- * parameter, which is the difference between a build-level fault and a source-level one.
+ * Faithfulness is the whole point. The first attempt at this audit split the segment into
+ * `"&daily=" + DAILY_FIELDS` inside a function body and reported no fault, which proves
+ * nothing about the original: a module-level `const` is where a build constant-folds a
+ * concatenation chain, and folding is the only step that could have dropped an operand.
+ */
+const AUDIT_CHAIN = "https://api.open-meteo.com/v1/forecast"
+  + `?latitude=${LATITUDE}&longitude=${LONGITUDE}`
+  + "&daily=precipitation_sum,et0_fao_evapotranspiration,temperature_2m_max,temperature_2m_mean"
+  + `&timezone=Europe%2FLondon&past_days=${HISTORY_DAYS}&forecast_days=16`;
+const AUDIT_CHAIN_WITH_HOURLY = AUDIT_CHAIN
+  + "&hourly=soil_moisture_0_to_7cm,soil_moisture_7_to_28cm";
+
+/** Module-level, single template literal: the shape the working probe route uses. */
+const AUDIT_TEMPLATE = `https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}`
+  + `&longitude=${LONGITUDE}&daily=${DAILY_FIELDS}`
+  + `&timezone=Europe%2FLondon&past_days=${HISTORY_DAYS}&forecast_days=16`;
+
+/**
+ * Which constructions of the same URL keep the parameter, in the build that is running.
+ *
+ * Kept only until the mechanism is confirmed in production: it separates a build-level fault
+ * from a source-level one, which is the difference between "fixed" and "fixed by accident".
  */
 function urlBuildAudit() {
-  const chained = "https://api.open-meteo.com/v1/forecast"
-    + `?latitude=${LATITUDE}&longitude=${LONGITUDE}`
-    + "&daily=" + DAILY_FIELDS
-    + `&timezone=Europe%2FLondon&past_days=${HISTORY_DAYS}&forecast_days=16`;
-  const single = `https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}`
-    + `&longitude=${LONGITUDE}&daily=${DAILY_FIELDS}`
-    + `&timezone=Europe%2FLondon&past_days=${HISTORY_DAYS}&forecast_days=16`;
-  const has = (url: string) => (url.includes("daily=") ? "keeps-daily" : "LOSES-DAILY");
-  return `builds: chained=${has(chained)} single=${has(single)}`
-    + ` params=${has(weatherUrl(false))} literal=${has("&daily=" + DAILY_FIELDS)}`;
+  const has = (label: string, url: string) =>
+    `${label}=${url.includes("daily=") ? "keeps" : "LOSES"}`;
+  return "builds: " + [
+    has("moduleChain", AUDIT_CHAIN),
+    has("moduleChain+hourly", AUDIT_CHAIN_WITH_HOURLY),
+    has("moduleTemplate", AUDIT_TEMPLATE),
+    has("params", weatherUrl(false)),
+  ].join(" ");
 }
 
 /**
