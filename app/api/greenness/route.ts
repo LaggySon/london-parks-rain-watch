@@ -143,11 +143,52 @@ async function fetchJson(url: string) {
   return reply.payload;
 }
 
-const WEATHER_BASE = "https://api.open-meteo.com/v1/forecast"
-  + `?latitude=${LATITUDE}&longitude=${LONGITUDE}`
-  + "&daily=precipitation_sum,et0_fao_evapotranspiration,temperature_2m_max,temperature_2m_mean"
-  + `&timezone=Europe%2FLondon&past_days=${HISTORY_DAYS}&forecast_days=16`;
-const SOIL_HOURLY = "&hourly=soil_moisture_0_to_7cm,soil_moisture_7_to_28cm";
+const DAILY_FIELDS = "precipitation_sum,et0_fao_evapotranspiration,temperature_2m_max,temperature_2m_mean";
+const SOIL_FIELDS = "soil_moisture_0_to_7cm,soil_moisture_7_to_28cm";
+
+/**
+ * Build the request from parameters rather than by gluing strings together.
+ *
+ * The string-concatenated version of this URL reached production missing its entire
+ * `&daily=...` segment - the one operand of the `+` chain that was a plain literal sitting
+ * between two template literals - while dev and every hand-run copy of the same URL was
+ * fine. Open-Meteo was answering the question it was actually asked: no `daily` requested,
+ * no `daily` returned, HTTP 200, and a 186-byte reply.
+ *
+ * `URLSearchParams` cannot lose a parameter the way a concatenation chain can, and it
+ * encodes the timezone slash itself.
+ */
+function weatherUrl(withHourly: boolean) {
+  const params = new URLSearchParams({
+    latitude: String(LATITUDE),
+    longitude: String(LONGITUDE),
+    daily: DAILY_FIELDS,
+    timezone: "Europe/London",
+    past_days: String(HISTORY_DAYS),
+    forecast_days: "16",
+  });
+  if (withHourly) params.set("hourly", SOIL_FIELDS);
+  return `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+}
+
+/**
+ * The same URL built the two other plausible ways, reported but never sent.
+ *
+ * Kept only until the cause is confirmed in production: it says which construction loses the
+ * parameter, which is the difference between a build-level fault and a source-level one.
+ */
+function urlBuildAudit() {
+  const chained = "https://api.open-meteo.com/v1/forecast"
+    + `?latitude=${LATITUDE}&longitude=${LONGITUDE}`
+    + "&daily=" + DAILY_FIELDS
+    + `&timezone=Europe%2FLondon&past_days=${HISTORY_DAYS}&forecast_days=16`;
+  const single = `https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}`
+    + `&longitude=${LONGITUDE}&daily=${DAILY_FIELDS}`
+    + `&timezone=Europe%2FLondon&past_days=${HISTORY_DAYS}&forecast_days=16`;
+  const has = (url: string) => (url.includes("daily=") ? "keeps-daily" : "LOSES-DAILY");
+  return `builds: chained=${has(chained)} single=${has(single)}`
+    + ` params=${has(weatherUrl(false))} literal=${has("&daily=" + DAILY_FIELDS)}`;
+}
 
 /**
  * One call covers both halves of the question: `past_days` gives the weather that made the
@@ -161,7 +202,7 @@ const SOIL_HOURLY = "&hourly=soil_moisture_0_to_7cm,soil_moisture_7_to_28cm";
  * with no weather is not.
  */
 async function fetchWeather() {
-  const attempts: string[] = [runtime()];
+  const attempts: string[] = [runtime(), urlBuildAudit()];
   const ask = async (label: string, url: string) => {
     const reply = await fetchReply(url);
     // Quote the URL, rather than trusting that it is the one in the source. The probe route
@@ -171,9 +212,9 @@ async function fetchWeather() {
     return reply;
   };
 
-  let reply = await ask("daily+hourly", WEATHER_BASE + SOIL_HOURLY);
+  let reply = await ask("daily+hourly", weatherUrl(true));
   if (!reply.payload?.daily?.time?.length) {
-    reply = await ask("daily only", WEATHER_BASE);
+    reply = await ask("daily only", weatherUrl(false));
   }
   const payload = reply.payload;
   const daily = payload?.daily;
