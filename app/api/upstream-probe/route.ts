@@ -71,12 +71,65 @@ async function probe(query: string) {
   }
 }
 
+/** The greenness route's own weather request, unchanged. */
+const WEATHER = `${POINT}&daily=precipitation_sum,et0_fao_evapotranspiration,temperature_2m_max`
+  + ",temperature_2m_mean&hourly=soil_moisture_0_to_7cm,soil_moisture_7_to_28cm"
+  + "&timezone=Europe%2FLondon&past_days=92&forecast_days=16";
+
+/**
+ * The one difference left between the two routes.
+ *
+ * Every URL above succeeds from production when asked for on its own, including the exact
+ * request the greenness route makes - yet that route still gets no `daily` block. What it
+ * does differently is fire the weather request *concurrently* with two calls to a second
+ * host, `ensemble-api.open-meteo.com`, inside one `Promise.allSettled`. So ask the same
+ * question three ways: alone, alongside those two calls, and after them.
+ */
+async function ensemble(model: string) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const url = "https://ensemble-api.open-meteo.com/v1/ensemble"
+    + `?${POINT}&daily=precipitation_sum&timezone=Europe%2FLondon&forecast_days=16&models=${model}`;
+  try {
+    const response = await fetch(url, { signal: controller.signal, cache: "no-store" });
+    const payload: any = await response.json().catch(() => null);
+    return { model, status: response.status, days: payload?.daily?.time?.length ?? null };
+  } catch (error) {
+    return { model, error: String((error as Error).message ?? error) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function concurrencyCases() {
+  const alone = await probe(WEATHER);
+
+  // Exactly the shape of the greenness route's own call.
+  const [together, ...ensembles] = await Promise.all([
+    probe(WEATHER), ensemble("gfs05"), ensemble("gem_global"),
+  ]);
+
+  const afterwards = await probe(WEATHER);
+
+  return [
+    { case: "11 weather alone", dailyDays: alone.dailyDays, bytes: alone.bytes },
+    {
+      case: "12 weather concurrent with both ensemble calls",
+      dailyDays: together.dailyDays,
+      bytes: together.bytes,
+      ensembles,
+    },
+    { case: "13 weather after the ensemble calls finish", dailyDays: afterwards.dailyDays, bytes: afterwards.bytes },
+  ];
+}
+
 export async function GET() {
   // In series, one at a time: the point is to compare replies, not to hammer a free API.
   const results = [];
   for (const item of CASES) {
     results.push({ case: item.name, ...(await probe(item.query)) });
   }
+  results.push(...(await concurrencyCases()) as any);
   return NextResponse.json({ ranAt: new Date().toISOString(), results }, {
     headers: { "Cache-Control": "no-store" },
   });
