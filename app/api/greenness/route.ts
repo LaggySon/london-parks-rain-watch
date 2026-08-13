@@ -107,6 +107,21 @@ async function fetchReply(url: string): Promise<Reply> {
   }
 }
 
+/**
+ * Which JavaScript runtime this route was built for.
+ *
+ * Worth reporting because the probe route and this one disagree about the same URL on the
+ * same deployment, and a route quietly built for a different runtime would explain it: the
+ * two do not share a fetch implementation.
+ */
+function runtime() {
+  return [
+    `NEXT_RUNTIME=${process.env.NEXT_RUNTIME ?? "(unset)"}`,
+    typeof (globalThis as any).EdgeRuntime === "undefined" ? "node-like" : "EdgeRuntime",
+    `region=${process.env.VERCEL_REGION ?? "(unset)"}`,
+  ].join(" ");
+}
+
 /** One line saying what came back, for an error message or the diagnostics block. */
 function describe(reply: Reply) {
   const keys = reply.payload && typeof reply.payload === "object"
@@ -146,10 +161,13 @@ const SOIL_HOURLY = "&hourly=soil_moisture_0_to_7cm,soil_moisture_7_to_28cm";
  * with no weather is not.
  */
 async function fetchWeather() {
-  const attempts: string[] = [];
+  const attempts: string[] = [runtime()];
   const ask = async (label: string, url: string) => {
     const reply = await fetchReply(url);
-    attempts.push(`${label}: ${describe(reply)}`);
+    // Quote the URL, rather than trusting that it is the one in the source. The probe route
+    // sends what looks like the same request and gets a different answer, so "what looks
+    // like the same request" is exactly the assumption that needs testing.
+    attempts.push(`${label}: ${describe(reply)} url=${url}`);
     return reply;
   };
 

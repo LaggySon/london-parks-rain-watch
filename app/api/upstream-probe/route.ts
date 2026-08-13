@@ -130,7 +130,16 @@ export async function GET() {
     results.push({ case: item.name, ...(await probe(item.query)) });
   }
   results.push(...(await concurrencyCases()) as any);
-  return NextResponse.json({ ranAt: new Date().toISOString(), results }, {
+  return NextResponse.json({
+    ranAt: new Date().toISOString(),
+    // For comparison against the same line from /api/greenness: if the two routes run on
+    // different runtimes they do not share a fetch, which would explain everything.
+    runtime: `NEXT_RUNTIME=${process.env.NEXT_RUNTIME ?? "(unset)"} `
+      + `${typeof (globalThis as any).EdgeRuntime === "undefined" ? "node-like" : "EdgeRuntime"} `
+      + `region=${process.env.VERCEL_REGION ?? "(unset)"}`,
+    weatherUrl: `https://api.open-meteo.com/v1/forecast?${WEATHER}`,
+    results,
+  }, {
     headers: { "Cache-Control": "no-store" },
   });
 }
