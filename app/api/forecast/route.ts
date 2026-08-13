@@ -6,29 +6,65 @@ const TRIP_START = "2026-08-28";
 const LATITUDE = 51.5074;
 const LONGITUDE = -0.1278;
 const TIMEOUT_MS = 8000;
-const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36";
 
-const weights = { met: .35, time: .20, network: .15, weather25: .10, ecmwf: .20 };
-
-const baseline = {
-  met: { label: "Met Office (UKMO)", amount: 8, probability: 55, url: "https://weather.metoffice.gov.uk/long-range-forecast" },
-  time: { label: "Timeanddate", amount: 15.2, probability: 75, url: "https://www.timeanddate.com/weather/uk/london/ext" },
-  network: { label: "Weather Network", amount: 34.5, probability: 90, url: "https://www.theweathernetwork.com/en/city/gb/greater-london/london/14-days" },
-  weather25: { label: "Weather25", amount: 10.6, probability: 65, url: "https://www.weather25.com/europe/united-kingdom/london?page=day" },
-  ecmwf: { label: "ECMWF IFS", amount: 3, probability: 20, url: "https://open-meteo.com/en/docs/ecmwf-api" },
+/**
+ * Only numerical weather prediction models, served through Open-Meteo's model endpoint with
+ * documented units and provenance.
+ *
+ * Earlier versions of this route also scraped three consumer forecast sites. They have been
+ * removed rather than fixed, because none of them could be trusted for a water balance:
+ * Timeanddate served a Cloudflare interstitial to every non-browser client; The Weather
+ * Network publishes rainfall only as qualitative bands ("<1 mm", "1-3 mm", "~5 mm") that a
+ * regex had to midpoint into a number; and Weather25 publishes no probability at all, so its
+ * "chance of rain" was invented by a curve in this file. A rebadged, regex-parsed number is
+ * not a second opinion - it is noise wearing a brand.
+ */
+const MODELS = {
+  ecmwf: {
+    id: "ecmwf_ifs025",
+    label: "ECMWF IFS",
+    url: "https://open-meteo.com/en/docs/ecmwf-api",
+    /** Consistently the most skilful global model over NW Europe, and the only one of the
+     * four that covers the whole window with a published probability. */
+    share: 0.40,
+  },
+  ukmo: {
+    id: "ukmo_seamless",
+    label: "Met Office (UKMO)",
+    url: "https://open-meteo.com/en/docs/ukmo-api",
+    /** The national model, strong at short range over the UK, but it publishes no
+     * probability of precipitation through this endpoint - see `probabilityShare`. */
+    share: 0.25,
+  },
+  icon: {
+    id: "icon_seamless",
+    label: "DWD ICON",
+    url: "https://open-meteo.com/en/docs/dwd-api",
+    share: 0.20,
+  },
+  gfs: {
+    id: "gfs_seamless",
+    label: "NOAA GFS",
+    url: "https://open-meteo.com/en/docs/gfs-api",
+    /** Weakest of the four for European rainfall, but genuinely independent of ECMWF. */
+    share: 0.15,
+  },
 };
 
-type Key = keyof typeof baseline;
-type Day = { key: string; mm: number; pop: number | null };
-type Source = typeof baseline[Key] & {
+type Key = keyof typeof MODELS;
+const KEYS = Object.keys(MODELS) as Key[];
+
+type Source = {
+  label: string;
+  url: string;
+  /** Total rainfall over the days this model actually covers, mm. */
   amount: number;
-  probability: number;
-  status: "live" | "baseline";
+  /** Highest daily chance of rain across the window, or null if the model publishes none. */
+  probability: number | null;
   days: number;
+  probabilityDays: number;
   reason?: string;
 };
-
-const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
 /** Days from today (Europe/London) up to, but not including, the trip start. */
 function forecastWindow() {
@@ -40,69 +76,24 @@ function forecastWindow() {
   for (let t = new Date(`${today}T00:00:00Z`).getTime(); t < end && dates.length < 30; t += 86400000) {
     dates.push(new Date(t).toISOString().slice(0, 10));
   }
-  return { dates, monthDays: new Set(dates.map(date => date.slice(5))) };
+  return { dates, inWindow: new Set(dates) };
 }
 
-function monthDayKey(month: string, day: string) {
-  const index = MONTHS.indexOf(month.slice(0, 3).toLowerCase());
-  if (index < 0) return null;
-  return `${String(index + 1).padStart(2, "0")}-${day.padStart(2, "0")}`;
+/** Weights over an arbitrary subset of the models, normalised to sum to 1. */
+function weightsOver(keys: Key[]) {
+  const total = keys.reduce((sum, key) => sum + MODELS[key].share, 0);
+  return Object.fromEntries(
+    keys.map((key) => [key, total > 0 ? MODELS[key].share / total : 0]),
+  ) as Record<Key, number>;
 }
 
-function plain(html: string) {
-  return html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;|&#160;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&deg;/g, "°").replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ");
-}
-
-async function getText(url: string) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-GB,en;q=0.9" },
-      cache: "no-store",
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return plain(await response.text());
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/**
- * Falls back to the app's own amount/probability relationship when a source
- * publishes rainfall but no probability of precipitation.
- */
-function impliedProbability(amount: number) {
-  return Math.max(5, Math.min(95, 12 + amount * 4.3));
-}
-
-function summarise(key: Key, days: Day[], monthDays: Set<string>): Source {
-  const inWindow = days.filter(day => monthDays.has(day.key));
-  if (!inWindow.length) throw new Error("no forecast days inside the window");
-  const amount = inWindow.reduce((total, day) => total + day.mm, 0);
-  const pops = inWindow.map(day => day.pop).filter((pop): pop is number => pop != null);
-  const probability = pops.length ? Math.max(...pops) : impliedProbability(amount);
-  return {
-    ...baseline[key],
-    amount: Number(amount.toFixed(1)),
-    probability: Number(probability.toFixed(0)),
-    status: "live",
-    days: inWindow.length,
-  };
-}
-
-/** Met Office UKMO and ECMWF IFS daily fields, both from Open-Meteo's model endpoint. */
-async function fetchOpenMeteo(monthDays: Set<string>) {
+async function fetchModels(inWindow: Set<string>) {
   const url = "https://api.open-meteo.com/v1/forecast"
     + `?latitude=${LATITUDE}&longitude=${LONGITUDE}`
     + "&daily=precipitation_sum,precipitation_probability_max"
     + "&timezone=Europe%2FLondon&forecast_days=16"
-    + "&models=ukmo_seamless,ecmwf_ifs025";
+    + `&models=${KEYS.map((key) => MODELS[key].id).join(",")}`;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let payload: any;
@@ -114,108 +105,95 @@ async function fetchOpenMeteo(monthDays: Set<string>) {
     clearTimeout(timer);
   }
 
-  const read = (key: Key, model: string): Source => {
-    const time: string[] = payload?.daily?.time ?? [];
-    const sums: (number | null)[] = payload?.daily?.[`precipitation_sum_${model}`] ?? [];
-    const pops: (number | null)[] = payload?.daily?.[`precipitation_probability_max_${model}`] ?? [];
-    const days: Day[] = time
-      .map((date, index) => ({ key: date.slice(5), mm: sums[index] ?? null, pop: pops[index] ?? null }))
-      .filter((day): day is Day => day.mm != null);
-    return summarise(key, days, monthDays);
-  };
+  const time: string[] = payload?.daily?.time ?? [];
+  const indices = time.map((date, i) => ({ date, i })).filter(({ date }) => inWindow.has(date));
+  if (!indices.length) throw new Error("no forecast days inside the window");
 
-  return { met: read("met", "ukmo_seamless"), ecmwf: read("ecmwf", "ecmwf_ifs025") };
-}
+  const sources = {} as Record<Key, Source>;
+  /** Per-model rainfall by date, so the blend can be done a day at a time. */
+  const byDate = {} as Record<Key, Map<string, number>>;
 
-/**
- * The Weather Network publishes rainfall as a qualitative band per day
- * ("<1 mm", "1-3 mm", "~5 mm"); days with no band are dry.
- */
-function rainBand(segment: string) {
-  const range = segment.match(/Rain amount\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*mm/i);
-  if (range) return (Number(range[1]) + Number(range[2])) / 2;
-  const about = segment.match(/Rain amount\s*~\s*(\d+(?:\.\d+)?)\s*mm/i);
-  if (about) return Number(about[1]);
-  const under = segment.match(/Rain amount\s*<\s*(\d+(?:\.\d+)?)\s*mm/i);
-  if (under) return Number(under[1]) / 2;
-  return 0;
-}
-
-async function fetchWeatherNetwork(monthDays: Set<string>) {
-  const text = await getText(baseline.network.url);
-  const heads = [...text.matchAll(/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\b/g)];
-  const days: Day[] = [];
-  heads.forEach((head, index) => {
-    const key = monthDayKey(head[1], head[2]);
-    if (!key) return;
-    const start = head.index ?? 0;
-    const segment = text.slice(start, heads[index + 1]?.index ?? start + 400);
-    const pop = segment.match(/P\.O\.P\.\s*(?:Sun\s*)?(\d{1,3})\s*%/i);
-    days.push({ key, mm: rainBand(segment), pop: pop ? Number(pop[1]) : null });
-  });
-  return summarise("network", days, monthDays);
-}
-
-async function fetchWeather25(monthDays: Set<string>) {
-  const text = await getText(baseline.weather25.url);
-  const days: Day[] = [];
-  for (const match of text.matchAll(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d+(?:\.\d+)?)\s*mm/gi)) {
-    const key = monthDayKey(match[1], match[2]);
-    if (key) days.push({ key, mm: Number(match[3]), pop: null });
+  for (const key of KEYS) {
+    const model = MODELS[key];
+    const sums: (number | null)[] = payload?.daily?.[`precipitation_sum_${model.id}`] ?? [];
+    const pops: (number | null)[] = payload?.daily?.[`precipitation_probability_max_${model.id}`] ?? [];
+    const rain = new Map<string, number>();
+    indices.forEach(({ date, i }) => {
+      if (sums[i] != null) rain.set(date, sums[i] as number);
+    });
+    const chances = indices.map(({ i }) => pops[i]).filter((pop): pop is number => pop != null);
+    byDate[key] = rain;
+    sources[key] = {
+      label: model.label,
+      url: model.url,
+      amount: Number([...rain.values()].reduce((total, mm) => total + mm, 0).toFixed(1)),
+      // No probability published means no probability reported. Inventing one from the
+      // rainfall total, as this route used to, dresses up a guess as a forecast.
+      probability: chances.length ? Math.max(...chances) : null,
+      days: rain.size,
+      probabilityDays: chances.length,
+    };
   }
-  return summarise("weather25", days, monthDays);
-}
-
-function fallback(key: Key, reason: string, windowDays: number): Source {
-  return { ...baseline[key], status: "baseline", days: windowDays, reason };
-}
-
-function settle(key: Key, result: PromiseSettledResult<Source>, windowDays: number): Source {
-  if (result.status === "fulfilled") return result.value;
-  const error = result.reason;
-  const message = error?.name === "AbortError" ? "timed out" : String(error?.message ?? error);
-  return fallback(key, message, windowDays);
+  return { sources, byDate };
 }
 
 export async function GET() {
-  const { dates, monthDays } = forecastWindow();
+  const { dates, inWindow } = forecastWindow();
   const windowDays = dates.length;
 
-  const [openMeteo, network, weather25] = await Promise.allSettled([
-    fetchOpenMeteo(monthDays),
-    fetchWeatherNetwork(monthDays),
-    fetchWeather25(monthDays),
-  ]);
+  let sources: Record<Key, Source>;
+  let byDate: Record<Key, Map<string, number>>;
+  try {
+    ({ sources, byDate } = await fetchModels(inWindow));
+  } catch (error: any) {
+    const reason = error?.name === "AbortError" ? "timed out" : String(error?.message ?? error);
+    return NextResponse.json({ error: `forecast models unavailable: ${reason}` }, { status: 503 });
+  }
 
-  const openMeteoError = openMeteo.status === "rejected"
-    ? String(openMeteo.reason?.message ?? openMeteo.reason)
-    : "";
+  // The models reach different distances into the window: UKMO and ICON run out around day 7
+  // while ECMWF and GFS cover the fortnight. So the blend is done a day at a time, with the
+  // weights renormalised over whichever models actually cover that day.
+  //
+  // An earlier version instead reduced each model to a daily rate and projected it across the
+  // whole window, which quietly turned UKMO's 7-day forecast into a 15-day number the Met
+  // Office never issued. Blending per day keeps every millimetre traceable to a model that
+  // really forecast that day - and lets the strongest UK model contribute where it is
+  // strongest, the first week, which is also the week that matters most for green-up.
+  const perDay = dates.map((date) => {
+    const present = KEYS.filter((key) => byDate[key].has(date));
+    const weights = weightsOver(present);
+    return {
+      date,
+      mm: Number(present.reduce(
+        (sum, key) => sum + (byDate[key].get(date) as number) * weights[key], 0).toFixed(2)),
+      models: present.length,
+    };
+  });
+  const amount = perDay.reduce((sum, day) => sum + day.mm, 0);
+  const withRain = KEYS.filter((key) => sources[key].days > 0);
+  const rainWeights = weightsOver(withRain);
 
-  const sources: Record<Key, Source> = {
-    met: openMeteo.status === "fulfilled" ? openMeteo.value.met : fallback("met", openMeteoError, windowDays),
-    // Timeanddate serves a Cloudflare interstitial to non-browser clients, so
-    // there is nothing to parse without defeating their bot protection.
-    time: fallback("time", "blocked by bot protection", windowDays),
-    network: settle("network", network, windowDays),
-    weather25: settle("weather25", weather25, windowDays),
-    ecmwf: openMeteo.status === "fulfilled" ? openMeteo.value.ecmwf : fallback("ecmwf", openMeteoError, windowDays),
-  };
+  // The probability average covers only the models that publish one, renormalised over that
+  // subset, so a silent model neither drags the number down nor gets a number invented for it.
+  const withProbability = KEYS.filter((key) => sources[key].probability != null);
+  const probabilityWeights = weightsOver(withProbability);
+  const probability = withProbability.length
+    ? withProbability.reduce(
+      (sum, key) => sum + (sources[key].probability as number) * probabilityWeights[key], 0)
+    : null;
 
-  const keys = Object.keys(baseline) as Key[];
+  // A model's nominal share is what it carries on a day it covers; its effective share is
+  // what it carries across the whole window, which is lower for anything that stops early.
+  const effectiveWeight = (key: Key) => dates.reduce((sum, date) => {
+    if (!byDate[key].has(date)) return sum;
+    return sum + weightsOver(KEYS.filter((k) => byDate[k].has(date)))[key];
+  }, 0) / (windowDays || 1);
 
-  // Sources reach different distances into the window — UKMO runs out around
-  // day 7 while ECMWF covers a fortnight — so totals are only comparable once
-  // each is reduced to a daily rate and projected back across the whole window.
-  const amount = keys.reduce((sum, key) => {
-    const source = sources[key];
-    const perDay = source.days > 0 ? source.amount / source.days : 0;
-    return sum + perDay * weights[key];
-  }, 0) * windowDays;
-  const probability = keys.reduce((sum, key) => sum + sources[key].probability * weights[key], 0);
-
-  const withWeights = Object.fromEntries(keys.map(key => [key, {
+  const detailed = Object.fromEntries(KEYS.map((key) => [key, {
     ...sources[key],
-    weight: weights[key],
+    weight: Number(effectiveWeight(key).toFixed(3)),
+    nominalWeight: MODELS[key].share,
+    probabilityWeight: probabilityWeights[key] ?? 0,
     coverage: `${sources[key].days}/${windowDays} days`,
   }]));
 
@@ -223,10 +201,16 @@ export async function GET() {
     updatedAt: new Date().toISOString(),
     tripStart: TRIP_START,
     window: { from: dates[0], to: dates[dates.length - 1], days: windowDays },
-    liveSources: keys.filter(key => sources[key].status === "live").length,
+    modelCount: KEYS.length,
+    liveSources: withRain.length,
     amount: Number(amount.toFixed(2)),
-    probability: Number(probability.toFixed(2)),
-    sources: withWeights,
+    /** Highest daily chance of rain in the window, weighted across the models that publish
+     * one. This is "will it rain at all", not "will there be enough to green the parks" -
+     * that question is answered by /api/greenness. */
+    probability: probability == null ? null : Number(probability.toFixed(2)),
+    probabilityBasis: withProbability.map((key) => MODELS[key].label),
+    perDay,
+    sources: detailed,
   }, {
     headers: { "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=300" },
   });

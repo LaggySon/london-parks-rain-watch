@@ -822,8 +822,8 @@ svg {
 <body>
 <div id="london-parks-rain-3d">
   <div class="viz-row top-line">
-    <span class="viz-badge" id="lrp-window">Forecast window: Aug 12–27</span>
-    <span class="text-small text-muted" id="lrp-live-status">Checking the five latest forecasts…</span>
+    <span class="viz-badge" id="lrp-window">Forecast window: loading…</span>
+    <span class="text-small text-muted" id="lrp-live-status">Running the water balance on the latest weather…</span>
     <button class="btn btn-ghost" type="button" id="lrp-refresh">Check now</button>
   </div>
 
@@ -844,19 +844,18 @@ svg {
 
   <div class="viz-controls model-controls">
     <label class="form-label source-control" for="lrp-source">
-      Forecast
+      Rain source
       <select class="form-select" id="lrp-source">
-        <option value="ensemble">Weighted ensemble</option>
-        <option value="met">Met Office (UKMO)</option>
-        <option value="time">Timeanddate</option>
-        <option value="network">Weather Network</option>
-        <option value="weather25">Weather25</option>
+        <option value="ensemble">Weighted models</option>
         <option value="ecmwf">ECMWF IFS</option>
+        <option value="ukmo">Met Office (UKMO)</option>
+        <option value="icon">DWD ICON</option>
+        <option value="gfs">NOAA GFS</option>
       </select>
     </label>
     <label class="form-label rain-control" for="lrp-rain">
-      Rain shown: <strong><span id="lrp-rain-value">12.7</span> mm</strong>
-      <input class="form-range" id="lrp-rain" type="range" min="0" max="40" step="0.1" value="12.7">
+      What if <strong><span id="lrp-rain-value">0</span> mm</strong> more rain fell?
+      <input class="form-range" id="lrp-rain" type="range" min="0" max="100" step="5" value="0">
     </label>
     <div class="viz-row rotate-controls" aria-label="Rotate park model">
       <button class="btn btn-ghost" type="button" id="lrp-left" aria-label="Rotate left"><i data-lucide="rotate-ccw" aria-hidden="true"></i> Left</button>
@@ -867,87 +866,103 @@ svg {
 
   <div class="viz-grid model-stats">
     <div class="card viz-stat">
+      <span class="text-muted">Looks green</span>
+      <span class="viz-stat-value" id="lrp-stat-green">—</span>
+      <span class="text-small" id="lrp-green-note">Modelled green cover on arrival</span>
+    </div>
+    <div class="card viz-stat">
+      <span class="text-muted">Good to sit on</span>
+      <span class="viz-stat-value" id="lrp-stat-sit">—</span>
+      <span class="text-small" id="lrp-sit-note">Ground condition underfoot</span>
+    </div>
+    <div class="card viz-stat">
+      <span class="text-muted">Chance of noticeably green</span>
+      <span class="viz-stat-value" id="lrp-stat-green-prob">—</span>
+      <span class="text-small" id="lrp-prob-note">Across the rainfall ensemble</span>
+    </div>
+    <div class="card viz-stat">
       <span class="text-muted">Rain shown</span>
-      <span class="viz-stat-value" id="lrp-stat-rain">12.7 mm</span>
-      <span class="text-small" id="lrp-source-label">Weighted expected amount</span>
+      <span class="viz-stat-value" id="lrp-stat-rain">—</span>
+      <span class="text-small" id="lrp-source-label">Weighted across four models</span>
     </div>
-    <div class="card viz-stat">
-      <span class="text-muted">Enough-rain probability</span>
-      <span class="viz-stat-value" id="lrp-stat-rain-prob">58.25%</span>
-      <span class="text-small">Before or early in the trip</span>
+  </div>
+
+  <div class="card green-panel" aria-live="polite">
+    <div class="green-head">
+      <strong id="lrp-green-title">Will the grass be green when I arrive?</strong>
+      <span class="viz-badge" id="lrp-green-verdict">—</span>
     </div>
-    <div class="card viz-stat">
-      <span class="text-muted">Some-green probability</span>
-      <span class="viz-stat-value" id="lrp-stat-green-prob">64.1%</span>
-      <span class="text-small" id="lrp-park-label">Hyde Park model</span>
+    <div class="text-small" id="lrp-green-range">Loading the modelled water balance…</div>
+    <svg class="spark" id="lrp-spark" viewBox="0 0 600 120" preserveAspectRatio="none" role="img"
+         aria-label="Modelled green cover over the past three months and ahead to arrival"></svg>
+    <div class="spark-axis text-small text-muted">
+      <span id="lrp-spark-from">—</span><span id="lrp-spark-mid">today</span><span id="lrp-spark-to">arrival</span>
     </div>
+    <div class="text-small" id="lrp-drought">—</div>
+    <div class="text-small" id="lrp-need">—</div>
+    <div class="text-small" id="lrp-sit-need">—</div>
+    <ul class="sit-cases text-small" id="lrp-sit-cases"></ul>
+    <div class="text-small" id="lrp-whatif">Drag the slider to add rainfall to the forecast.</div>
+    <div class="text-small text-muted" id="lrp-ban"></div>
   </div>
 
   <div class="park-summary" aria-live="polite">
     <strong id="lrp-summary-name">Hyde Park</strong>
-    <span id="lrp-summary-detail">Serpentine, Long Water, Rotten Row and the southeast Rose Garden · 57% modeled green coverage at 12.7 mm</span>
+    <span id="lrp-summary-detail">Serpentine, Long Water, Rotten Row and the southeast Rose Garden</span>
   </div>
 
   <div class="table-responsive forecast-table-wrap">
     <table class="table table-sm">
       <thead>
         <tr>
-          <th>Forecast source</th>
+          <th>Forecast model</th>
           <th class="text-end">Rain input</th>
-          <th class="text-end">Enough-rain chance</th>
-          <th class="text-end">Model weight</th>
+          <th class="text-end">Chance of a wet day</th>
+          <th class="text-end">Rain weight</th>
         </tr>
       </thead>
       <tbody>
-        <tr data-source-row="met">
-          <td><a href="https://weather.metoffice.gov.uk/long-range-forecast" target="_blank" rel="noreferrer">Met Office (UKMO)</a></td>
-          <td class="text-end">8.0 mm</td>
-          <td class="text-end">55%</td>
-          <td class="text-end">35%</td>
-        </tr>
-        <tr data-source-row="time">
-          <td><a href="https://www.timeanddate.com/weather/uk/london/ext" target="_blank" rel="noreferrer">Timeanddate</a></td>
-          <td class="text-end">15.2 mm</td>
-          <td class="text-end">75%</td>
-          <td class="text-end">20%</td>
-        </tr>
-        <tr data-source-row="network">
-          <td><a href="https://www.theweathernetwork.com/en/city/gb/greater-london/london/14-days" target="_blank" rel="noreferrer">Weather Network</a></td>
-          <td class="text-end">34.5 mm</td>
-          <td class="text-end">90%</td>
-          <td class="text-end">15%</td>
-        </tr>
-        <tr data-source-row="weather25">
-          <td><a href="https://www.weather25.com/europe/united-kingdom/london?page=day" target="_blank" rel="noreferrer">Weather25</a></td>
-          <td class="text-end">10.6 mm</td>
-          <td class="text-end">65%</td>
-          <td class="text-end">10%</td>
-        </tr>
         <tr data-source-row="ecmwf">
           <td><a href="https://open-meteo.com/en/docs/ecmwf-api" target="_blank" rel="noreferrer">ECMWF IFS</a></td>
-          <td class="text-end">3.0 mm</td>
+          <td class="text-end">—</td>
+          <td class="text-end">—</td>
+          <td class="text-end">40%</td>
+        </tr>
+        <tr data-source-row="ukmo">
+          <td><a href="https://open-meteo.com/en/docs/ukmo-api" target="_blank" rel="noreferrer">Met Office (UKMO)</a></td>
+          <td class="text-end">—</td>
+          <td class="text-end">—</td>
+          <td class="text-end">25%</td>
+        </tr>
+        <tr data-source-row="icon">
+          <td><a href="https://open-meteo.com/en/docs/dwd-api" target="_blank" rel="noreferrer">DWD ICON</a></td>
+          <td class="text-end">—</td>
+          <td class="text-end">—</td>
           <td class="text-end">20%</td>
-          <td class="text-end">20%</td>
+        </tr>
+        <tr data-source-row="gfs">
+          <td><a href="https://open-meteo.com/en/docs/gfs-api" target="_blank" rel="noreferrer">NOAA GFS</a></td>
+          <td class="text-end">—</td>
+          <td class="text-end">—</td>
+          <td class="text-end">15%</td>
         </tr>
       </tbody>
       <tfoot>
         <tr>
-          <th>Weighted ensemble</th>
-          <th class="text-end">12.7 mm</th>
-          <th class="text-end">58.25%</th>
+          <th>Weighted across models</th>
+          <th class="text-end">—</th>
+          <th class="text-end">—</th>
           <th class="text-end">100%</th>
         </tr>
       </tfoot>
     </table>
   </div>
-  <div class="text-small text-muted footnote">Rain input is each source&rsquo;s own total across the days it actually covers; the ensemble converts every source to a daily rate before weighting, so a short-range model is not penalised for stopping early. Park appearance and green probabilities are estimates, not official forecasts.</div>
+  <div class="text-small text-muted footnote">Only numerical weather prediction models are used: ECMWF, the Met Office, DWD and NOAA, read through Open-Meteo. Consumer forecast sites were removed because their rainfall is published as vague bands and their &ldquo;chance of rain&rdquo; had to be invented. Rain input is each model&rsquo;s own total across the days it actually covers, converted to a daily rate before weighting, so a short-range model is not penalised for stopping early. A model that publishes no probability is left out of the probability column rather than given a made-up one. <strong>Chance of a wet day is not the chance of green grass</strong> &mdash; the green figures come from a soil-water-balance and turf model driven by the past 92 days of weather and a 52-member rainfall ensemble. Per-park soil, root depth and irrigation coverage are documented assumptions, not measurements; these are estimates, not official forecasts.</div>
 
-  <span class="palette-swatch palette-dry" id="lrp-palette-dry" aria-hidden="true"></span>
   <span class="palette-swatch palette-green" id="lrp-palette-green" aria-hidden="true"></span>
   <span class="palette-swatch palette-water" id="lrp-palette-water" aria-hidden="true"></span>
   <span class="palette-swatch palette-path" id="lrp-palette-path" aria-hidden="true"></span>
   <span class="palette-swatch palette-structure" id="lrp-palette-structure" aria-hidden="true"></span>
-  <span class="palette-swatch palette-trunk" id="lrp-palette-trunk" aria-hidden="true"></span>
   <span class="palette-swatch palette-flower" id="lrp-palette-flower" aria-hidden="true"></span>
   <span class="palette-swatch palette-highlight" id="lrp-palette-highlight" aria-hidden="true"></span>
 </div>
@@ -1029,7 +1044,71 @@ svg {
   }
 
   #london-parks-rain-3d .model-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #london-parks-rain-3d .green-panel {
+    display: grid;
+    gap: .5rem;
+  }
+
+  #london-parks-rain-3d .green-verdict {
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  /* Fixed height so the panel does not jump between the placeholder and the loaded series. */
+  #london-parks-rain-3d .spark {
+    width: 100%;
+    height: 120px;
+    display: block;
+    overflow: visible;
+  }
+
+  #london-parks-rain-3d .spark-axis {
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+  }
+
+  #london-parks-rain-3d .spark-fan {
+    fill: var(--green);
+    opacity: .22;
+  }
+
+  #london-parks-rain-3d .spark-line {
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 2;
+    stroke-linejoin: round;
+  }
+
+  #london-parks-rain-3d .spark-threshold,
+  #london-parks-rain-3d .spark-today {
+    stroke: currentColor;
+    stroke-width: 1;
+    opacity: .35;
+  }
+
+  #london-parks-rain-3d .spark-threshold {
+    stroke-dasharray: 4 4;
+  }
+
+  /* One line per rainfall pattern, so the totals line up and can be read down the column. */
+  #london-parks-rain-3d .sit-cases {
+    display: grid;
+    gap: .2rem;
+    margin: -.15rem 0 0;
+    padding-left: 1.1rem;
+  }
+
+  #london-parks-rain-3d .sit-cases li::marker {
+    color: var(--green);
+  }
+
+  /* Patterns that never satisfy the bar are still worth reading, just not first. */
+  #london-parks-rain-3d .sit-cases li.is-short {
+    opacity: .72;
   }
 
   #london-parks-rain-3d .park-summary {
@@ -1061,12 +1140,10 @@ svg {
     pointer-events: none;
   }
 
-  #london-parks-rain-3d .palette-dry { background: var(--viz-series-4); }
   #london-parks-rain-3d .palette-green { background: var(--green); }
   #london-parks-rain-3d .palette-water { background: var(--viz-series-1); }
   #london-parks-rain-3d .palette-path { background: var(--muted); }
   #london-parks-rain-3d .palette-structure { background: var(--secondary); }
-  #london-parks-rain-3d .palette-trunk { background: var(--viz-series-5); }
   #london-parks-rain-3d .palette-flower { background: var(--viz-series-2); }
   #london-parks-rain-3d .palette-highlight { background: var(--viz-series-3); }
 
@@ -1089,6 +1166,10 @@ svg {
 
     #london-parks-rain-3d .model-stats {
       grid-template-columns: 1fr;
+    }
+
+    #london-parks-rain-3d .spark {
+      height: 96px;
     }
   }
 </style>
@@ -1114,85 +1195,84 @@ svg {
     return getComputedStyle(root.querySelector(id)).backgroundColor;
   }
 
+  /**
+   * The built environment and the water follow the host page's chart palette, so the scene
+   * sits inside whatever theme it is embedded in. Living matter does not: a chart palette has
+   * no bark, soil or straw in it, and drawing them from series slots gave lavender tree
+   * trunks and a neon lawn. Grass, straw, soil and foliage are therefore literal colours,
+   * picked to read as parched London turf under summer light.
+   */
   const colors = {
-    dry: new THREE.Color(cssColor("#lrp-palette-dry")),
-    green: new THREE.Color(cssColor("#lrp-palette-green")),
     water: new THREE.Color(cssColor("#lrp-palette-water")),
     path: new THREE.Color(cssColor("#lrp-palette-path")),
     structure: new THREE.Color(cssColor("#lrp-palette-structure")),
-    trunk: new THREE.Color(cssColor("#lrp-palette-trunk")),
     flower: new THREE.Color(cssColor("#lrp-palette-flower")),
-    highlight: new THREE.Color(cssColor("#lrp-palette-highlight"))
+    highlight: new THREE.Color(cssColor("#lrp-palette-highlight")),
+    /** Healthy amenity turf: desaturated olive, not a signal green. */
+    green: new THREE.Color(0x5c8a3c),
+    /** Dormant turf: pale straw, the colour London parks actually go. */
+    dry: new THREE.Color(0xc7b076),
+    /** Bare, cracked ground showing through where the sward has died back. */
+    soil: new THREE.Color(0x8a7150),
+    trunk: new THREE.Color(0x6d5741),
+    foliage: new THREE.Color(0x4a7331),
+    /** Even deep-rooted plane trees go olive and crisp at the edges in a drought. */
+    foliageDry: new THREE.Color(0x8d8348)
   };
 
+  // Populated from /api/forecast. Nothing is hardcoded as a "verified baseline" any more:
+  // if the models cannot be reached the page says so rather than showing stale numbers.
   const forecasts = {
-    ensemble: { label: "Weighted ensemble · updated Aug 12", amount: 12.675, probability: 58.25 },
-    met: { label: "Met Office (UKMO) · baseline", amount: 8, probability: 55 },
-    time: { label: "Timeanddate · baseline", amount: 15.2, probability: 75 },
-    network: { label: "Weather Network · baseline", amount: 34.5, probability: 90 },
-    weather25: { label: "Weather25 · baseline", amount: 10.6, probability: 65 },
-    ecmwf: { label: "ECMWF IFS · baseline", amount: 3, probability: 20 }
+    ensemble: { label: "Weighted across four models", amount: null, probability: null }
   };
+
+  /** Latest /api/greenness payload; null until it loads or if it fails. */
+  let greenData = null;
 
   const parks = {
     hyde: {
       name: "Hyde Park",
       detail: "Serpentine, Long Water, Rotten Row and the southeast Rose Garden",
       landmarks: "Serpentine · Rotten Row · Rose Garden · Speakers’ Corner",
-      baseCoverage: 18,
-      response: 3.1,
-      maxCoverage: 88,
-      greenIfRain: 85,
-      greenIfDry: 35,
       type: "hyde",
+      /** Stable seed for the deterministic grass scatter and patch noise. */
+      seed: 17,
       boundary: [[-3.45,-1.55],[-2.7,-1.82],[2.72,-1.73],[3.36,-1.2],[3.33,1.35],[2.8,1.72],[-2.85,1.78],[-3.52,1.2]]
     },
     "st-james": {
       name: "St James’s Park",
       detail: "Curving lake between Buckingham Palace, The Mall and Horse Guards",
       landmarks: "Buckingham Palace · Blue Bridge · Duck Island · Horse Guards",
-      baseCoverage: 50,
-      response: 2.1,
-      maxCoverage: 96,
-      greenIfRain: 96,
-      greenIfDry: 70,
       type: "st-james",
+      /** Stable seed for the deterministic grass scatter and patch noise. */
+      seed: 41,
       boundary: [[-3.42,-1.1],[-2.55,-1.46],[2.65,-1.26],[3.4,-.74],[3.25,.95],[2.62,1.34],[-2.58,1.42],[-3.46,.86]]
     },
     regent: {
       name: "Regent’s Park",
       detail: "Outer Circle, Queen Mary’s Gardens, boating lake and northern zoo edge",
       landmarks: "Queen Mary’s Gardens · Boating Lake · Broad Walk · Open Air Theatre",
-      baseCoverage: 38,
-      response: 2.4,
-      maxCoverage: 94,
-      greenIfRain: 92,
-      greenIfDry: 55,
       type: "regent",
+      /** Stable seed for the deterministic grass scatter and patch noise. */
+      seed: 73,
       boundary: [[-2.75,-1.82],[1.92,-1.85],[3.12,-1.12],[3.43,.35],[2.72,1.62],[1.15,1.92],[-1.95,1.78],[-3.2,.95],[-3.45,-.35]]
     },
     kensington: {
       name: "Kensington Gardens",
       detail: "Kensington Palace, Round Pond, formal avenues and the Long Water",
       landmarks: "Kensington Palace · Round Pond · Long Water · Albert Memorial",
-      baseCoverage: 45,
-      response: 2.2,
-      maxCoverage: 95,
-      greenIfRain: 92,
-      greenIfDry: 58,
       type: "kensington",
+      /** Stable seed for the deterministic grass scatter and patch noise. */
+      seed: 109,
       boundary: [[-3.18,-1.66],[2.25,-1.86],[3.1,-1.25],[3.34,.2],[2.78,1.67],[-2.72,1.82],[-3.42,.9],[-3.4,-.9]]
     },
     greenwich: {
       name: "Greenwich Park",
       detail: "Steep observatory hill, axial avenues and open view toward Queen’s House",
       landmarks: "Royal Observatory · General Wolfe · Queen’s House axis · Flower Garden",
-      baseCoverage: 28,
-      response: 2.8,
-      maxCoverage: 90,
-      greenIfRain: 88,
-      greenIfDry: 45,
       type: "greenwich",
+      /** Stable seed for the deterministic grass scatter and patch noise. */
+      seed: 151,
       boundary: [[-2.92,-1.84],[2.68,-1.82],[3.26,-1.1],[3.12,1.54],[2.42,1.89],[-2.55,1.75],[-3.27,1.08],[-3.36,-1.14]]
     }
   };
@@ -1203,9 +1283,25 @@ svg {
     rainValue: root.querySelector("#lrp-rain-value"),
     statRain: root.querySelector("#lrp-stat-rain"),
     sourceLabel: root.querySelector("#lrp-source-label"),
-    statRainProb: root.querySelector("#lrp-stat-rain-prob"),
+    statGreen: root.querySelector("#lrp-stat-green"),
+    greenNote: root.querySelector("#lrp-green-note"),
+    statSit: root.querySelector("#lrp-stat-sit"),
+    sitNote: root.querySelector("#lrp-sit-note"),
     statGreenProb: root.querySelector("#lrp-stat-green-prob"),
-    parkLabel: root.querySelector("#lrp-park-label"),
+    probNote: root.querySelector("#lrp-prob-note"),
+    greenTitle: root.querySelector("#lrp-green-title"),
+    greenVerdict: root.querySelector("#lrp-green-verdict"),
+    greenRange: root.querySelector("#lrp-green-range"),
+    spark: root.querySelector("#lrp-spark"),
+    sparkFrom: root.querySelector("#lrp-spark-from"),
+    sparkMid: root.querySelector("#lrp-spark-mid"),
+    sparkTo: root.querySelector("#lrp-spark-to"),
+    drought: root.querySelector("#lrp-drought"),
+    need: root.querySelector("#lrp-need"),
+    sitNeed: root.querySelector("#lrp-sit-need"),
+    sitCases: root.querySelector("#lrp-sit-cases"),
+    whatIf: root.querySelector("#lrp-whatif"),
+    ban: root.querySelector("#lrp-ban"),
     summaryName: root.querySelector("#lrp-summary-name"),
     summaryDetail: root.querySelector("#lrp-summary-detail"),
     sceneKey: root.querySelector("#lrp-scene-key"),
@@ -1217,13 +1313,34 @@ svg {
   };
 
   const scene = new THREE.Scene();
+  // Positioned by frameCamera() once the canvas size is known.
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
-  camera.position.set(8.2, 6.4, 9.2);
-  camera.lookAt(0, 0, 0);
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setClearColor(0x000000, 0);
+  // Soft shadows are affordable here because the scene is not animated continuously: it
+  // re-renders on interaction, on a data refresh, and while rain is falling.
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  /**
+   * A late-August sun, low and to the south-west, plus sky and ground bounce. Without this
+   * every surface was drawn at full flat colour, which is why the park used to read as a
+   * paper cut-out: nothing had a lit side, a shaded side, or a shadow on the grass.
+   */
+  const sun = new THREE.DirectionalLight(0xfff3dc, 2.05);
+  sun.position.set(-5.5, 7.5, 4.5);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.radius = 2.5;
+  sun.shadow.bias = -0.0016;
+  // Tight ortho bounds around the park slab keep the 1024px map sharp.
+  Object.assign(sun.shadow.camera, { left: -5.2, right: 5.2, top: 4.2, bottom: -4.2, near: 0.5, far: 22 });
+  scene.add(sun);
+  scene.add(new THREE.HemisphereLight(0xdcecff, 0x6b5a3e, 1.15));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.42));
 
   const parkGroup = new THREE.Group();
   parkGroup.rotation.y = -0.3;
@@ -1231,26 +1348,41 @@ svg {
 
   let selectedParkKey = "hyde";
   let selectedForecastKey = "ensemble";
-  let rainAmount = forecasts.ensemble.amount;
+  /** Rain the chosen source expects over the window; drives the falling-drop count only. */
+  let rainAmount = 0;
+  /** Slider: hypothetical extra rainfall, in mm across the window. Drives the what-if. */
+  let extraRain = 0;
   let lawnMesh = null;
   let grassBladeMesh = null;
   let moistureThresholds = [];
   let bladeThresholds = [];
   let surfaceVariation = [];
   let bladeVariation = [];
+  /** Per-blade placement, kept so the sward can be shortened as it goes dormant. */
+  let bladeBaseScale = [];
+  let bladePark = null;
+  /** Tree crowns, kept so drought can be reflected in the canopy as well as the turf. */
+  let treeCrowns = [];
   let rainPoints = null;
   let dragging = false;
   let previousX = 0;
   let planView = false;
 
+  /**
+   * Lambert rather than Basic: these surfaces need a lit and a shaded face to read as solid.
+   * Lambert is chosen over Standard deliberately - the scene has no environment map, so the
+   * physical model's specular response would only add cost, not realism.
+   */
   function material(color, options) {
-    return new THREE.MeshBasicMaterial(Object.assign({ color }, options || {}));
+    return new THREE.MeshLambertMaterial(Object.assign({ color }, options || {}));
   }
 
   function addBox(group, x, y, z, width, height, depth, color, rotationY) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material(color));
     mesh.position.set(x, y, z);
     mesh.rotation.y = rotationY || 0;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     group.add(mesh);
     return mesh;
   }
@@ -1262,6 +1394,7 @@ svg {
     mesh.scale.set(width, depth, 1);
     mesh.rotation.set(-Math.PI / 2, 0, rotationY || 0);
     mesh.position.set(x, y, z);
+    mesh.receiveShadow = true;
     group.add(mesh);
     return mesh;
   }
@@ -1283,6 +1416,7 @@ svg {
     );
     mesh.rotation.x = Math.PI / 2;
     mesh.position.y = y;
+    mesh.receiveShadow = true;
     group.add(mesh);
     return mesh;
   }
@@ -1303,7 +1437,10 @@ svg {
       const dx = b[0] - a[0];
       const dz = b[1] - a[1];
       const length = Math.hypot(dx, dz);
-      addBox(group, (a[0] + b[0]) / 2, y, (a[1] + b[1]) / 2, length, .025, width, color, -Math.atan2(dz, dx));
+      const slab = addBox(group, (a[0] + b[0]) / 2, y, (a[1] + b[1]) / 2, length, .025, width, color, -Math.atan2(dz, dx));
+      // A path lies flat on the turf; letting it cast would only produce shadow acne against
+      // the lawn a few millimetres below it.
+      slab.castShadow = false;
     }
   }
 
@@ -1323,14 +1460,52 @@ svg {
     return .08 + slope * .32 + hill;
   }
 
+  /**
+   * A London plane rather than a lollipop: a tapered trunk that forks, and a crown built from
+   * three overlapping lobes at different heights and radii. The lobes are what stop a row of
+   * trees looking like identical stamps - each one is offset by its own hash.
+   */
   function addTree(group, park, x, z, scale, crownColor) {
     const tree = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.065, 0.42, 7), material(colors.trunk));
-    trunk.position.y = 0.38;
-    const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(0.24 * scale, 1), material(crownColor || colors.green));
-    crown.position.y = 0.72;
+    const seed = Math.abs(x * 31.7 + z * 17.3);
+    const lean = (hash(seed) - .5) * .12;
+
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035 * scale, 0.062 * scale, 0.46 * scale, 6),
+      material(colors.trunk)
+    );
+    trunk.position.y = 0.23 * scale;
+    trunk.castShadow = true;
+    tree.add(trunk);
+
+    const lobes = [
+      { r: 0.23, y: 0.60, off: 0.00, tone: 1.00 },
+      { r: 0.17, y: 0.75, off: 0.09, tone: 1.12 },
+      { r: 0.15, y: 0.54, off: -0.11, tone: 0.88 }
+    ];
+    lobes.forEach((lobe, i) => {
+      const spin = hash(seed + i * 3.7) * Math.PI * 2;
+      const jitter = 0.7 + hash(seed + i * 8.1) * 0.6;
+      const crown = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(lobe.r * scale * jitter, 1),
+        material((crownColor || colors.foliage).clone().multiplyScalar(lobe.tone))
+      );
+      crown.position.set(
+        Math.cos(spin) * lobe.off * scale,
+        lobe.y * scale,
+        Math.sin(spin) * lobe.off * scale
+      );
+      // Slightly squashed: a canopy is wider than it is tall.
+      crown.scale.set(1, 0.86, 1);
+      crown.castShadow = true;
+      tree.add(crown);
+      // Only the untinted street/park trees respond to drought; deliberately coloured
+      // plantings (formal beds, the Greenwich terraces) keep the colour they were given.
+      if (!crownColor) treeCrowns.push({ mesh: crown, tone: lobe.tone });
+    });
+
     tree.position.set(x, heightAt(park, x, z), z);
-    tree.add(trunk, crown);
+    tree.rotation.z = lean;
     group.add(tree);
   }
 
@@ -1406,8 +1581,8 @@ svg {
         const corners = [[x,z],[x+step,z],[x+step,z+step],[x,z],[x+step,z+step],[x,z+step]];
         corners.forEach((point, cornerIndex) => {
           positions.push(point[0], heightAt(park, point[0], point[1]) + .012, point[1]);
-          fieldValues.push(grassField(park, point[0], point[1], park.baseCoverage * .037));
-          surfaceVariation.push(hash(cellIndex * 7 + cornerIndex + park.baseCoverage) * 2 - 1);
+          fieldValues.push(grassField(park, point[0], point[1], park.seed * .037));
+          surfaceVariation.push(hash(cellIndex * 7 + cornerIndex + park.seed) * 2 - 1);
         });
         cellIndex += 1;
       }
@@ -1416,47 +1591,104 @@ svg {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(positions.length), 3));
-    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    // Lambert needs normals; on a near-flat lawn these come out upward, so the turf takes the
+    // sun evenly and the tree shadows land on it.
+    geometry.computeVertexNormals();
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    mesh.receiveShadow = true;
     group.add(mesh);
     lawnMesh = mesh;
   }
 
+  /**
+   * A tapered, slightly bent blade rather than a flat triangle, built as two crossed cards so
+   * it holds its shape from any camera angle. The normals are forced straight up: a blade card
+   * is a stand-in for a tuft of grass, and lighting it by its true facet normals made half of
+   * every tuft go black as the park rotated.
+   */
+  function bladeGeometry() {
+    const positions = [];
+    const normals = [];
+    const card = (axis) => {
+      const w = .017;
+      const lean = .022;
+      // base-left, base-right, mid-right, base-left, mid-right, mid-left, then a tip triangle
+      const pts = [
+        [-w, 0, 0], [w, 0, 0], [w * .55, .07, lean * .4],
+        [-w, 0, 0], [w * .55, .07, lean * .4], [-w * .55, .07, lean * .4],
+        [-w * .55, .07, lean * .4], [w * .55, .07, lean * .4], [0, .125, lean]
+      ];
+      pts.forEach((p) => {
+        positions.push(axis ? p[0] : p[2], p[1], axis ? p[2] : p[0]);
+        normals.push(0, 1, 0);
+      });
+    };
+    card(true);
+    card(false);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+    return geometry;
+  }
+
   function createGrassBlades(group, park) {
     const bladePositions = [];
-    for (let i = 0; i < 2600 && bladePositions.length < 1650; i += 1) {
-      const x = -3.5 + hash(i * 2.17 + park.baseCoverage) * 7;
-      const z = -1.9 + hash(i * 4.73 + 91 + park.baseCoverage) * 3.8;
+    for (let i = 0; i < 4200 && bladePositions.length < 2600; i += 1) {
+      const x = -3.5 + hash(i * 2.17 + park.seed) * 7;
+      const z = -1.9 + hash(i * 4.73 + 91 + park.seed) * 3.8;
       if (pointInside([x, z], park.boundary) && !excludesGrass(park, x, z)) bladePositions.push([x, z]);
     }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute([
-      -.014,0,0, .014,0,0, 0,.115,0,
-      0,0,-.014, 0,0,.014, 0,.115,0
-    ], 3));
-    const mesh = new THREE.InstancedMesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), bladePositions.length);
+    const mesh = new THREE.InstancedMesh(
+      bladeGeometry(),
+      new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
+      bladePositions.length
+    );
+    mesh.receiveShadow = true;
     const dummy = new THREE.Object3D();
     const fieldValues = [];
     bladeVariation = [];
+    bladeBaseScale = [];
     bladePositions.forEach((point, index) => {
       const heightScale = .62 + hash(index * 3.41 + 7) * .76;
       const widthScale = .72 + hash(index * 8.13 + 3) * .55;
       dummy.position.set(point[0], heightAt(park, point[0], point[1]) + .01, point[1]);
-      dummy.rotation.set(0, hash(index * 9.7) * Math.PI, (hash(index * 6.2) - .5) * .14);
+      dummy.rotation.set(0, hash(index * 9.7) * Math.PI * 2, (hash(index * 6.2) - .5) * .22);
       dummy.scale.set(widthScale, heightScale, widthScale);
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
-      fieldValues.push(grassField(park, point[0], point[1], park.baseCoverage * .037));
-      bladeVariation.push(hash(index * 5.91 + park.baseCoverage) * 2 - 1);
+      fieldValues.push(grassField(park, point[0], point[1], park.seed * .037));
+      bladeVariation.push(hash(index * 5.91 + park.seed) * 2 - 1);
+      // Kept so updateLawn can shorten the sward as it browns: dormant grass is not just a
+      // different colour, it stops growing and gets scalped down by mowing and footfall.
+      bladeBaseScale.push({
+        x: point[0], z: point[1], width: widthScale, height: heightScale,
+        spin: hash(index * 9.7) * Math.PI * 2, tilt: (hash(index * 6.2) - .5) * .22
+      });
     });
     bladeThresholds = percentileRanks(fieldValues);
     mesh.instanceMatrix.needsUpdate = true;
     group.add(mesh);
     grassBladeMesh = mesh;
+    bladePark = park;
   }
 
+  /**
+   * The ground the park sits on, extruded a little so the scene reads as a block of London
+   * rather than a sheet of paper floating in space.
+   */
   function addBase(group, park) {
-    const baseColor = colors.dry.clone().lerp(colors.green, Math.min(park.baseCoverage / 130, 0.45));
-    addShape(group, park.boundary, .02, baseColor, 1);
+    const shape = shapeFrom(park.boundary);
+    const slab = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(shape, { depth: .34, bevelEnabled: false }),
+      material(colors.soil.clone().multiplyScalar(.82))
+    );
+    slab.rotation.x = Math.PI / 2;
+    slab.position.y = .02;
+    slab.receiveShadow = true;
+    group.add(slab);
+
+    // Bare earth directly under the turf, so thin patches read as soil rather than as holes.
+    addShape(group, park.boundary, .021, colors.soil, 1);
     addOutline(group, park.boundary, .045, colors.structure);
     createGrassSurface(group, park);
     createGrassBlades(group, park);
@@ -1478,6 +1710,7 @@ svg {
     addBox(group, x, y + .05, z, .28 * scale, .1, .28 * scale, colors.structure, 0);
     const column = new THREE.Mesh(new THREE.CylinderGeometry(.045 * scale, .065 * scale, .48 * scale, 9), material(colors.highlight));
     column.position.set(x, y + .34 * scale, z);
+    column.castShadow = true;
     group.add(column);
   }
 
@@ -1552,6 +1785,7 @@ svg {
     addBuilding(group, park, 0, .85, .86, .58, .5, colors.trunk);
     const dome = new THREE.Mesh(new THREE.SphereGeometry(.2, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), material(colors.water));
     dome.position.set(.16, heightAt(park, .16, .85) + .73, .85);
+    dome.castShadow = true;
     group.add(dome);
     addMonument(group, park, 0, .28, .95);
     addBuilding(group, park, 0, -1.48, .72, .48, .22, colors.highlight);
@@ -1563,20 +1797,56 @@ svg {
     addTreeLine(group, park, [[1.25,-1.5],[.72,-.35],[.35,.8]], 18, 1, .06);
   }
 
+  /**
+   * Rain drawn as short vertical streaks rather than round dots - a falling drop is a streak
+   * to the eye, and to a camera. Each drop is a two-vertex line segment; falling is done by
+   * shifting the whole buffer down and wrapping, which is one attribute upload per frame.
+   */
+  const RAIN_DROPS = 180;
+  const RAIN_TOP = 4.1;
+
   function addRain(group) {
-    const count = 180;
-    const positions = new Float32Array(count * 3);
-    for (let i = 0; i < count; i += 1) {
-      positions[i * 3] = -3.5 + Math.abs(Math.sin(i * 19.31)) * 7;
-      positions[i * 3 + 1] = 0.65 + Math.abs(Math.sin(i * 7.17)) * 3.3;
-      positions[i * 3 + 2] = -2.1 + Math.abs(Math.cos(i * 11.73)) * 4.2;
+    const positions = new Float32Array(RAIN_DROPS * 6);
+    for (let i = 0; i < RAIN_DROPS; i += 1) {
+      const x = -3.5 + Math.abs(Math.sin(i * 19.31)) * 7;
+      const y = 0.5 + Math.abs(Math.sin(i * 7.17)) * 3.4;
+      const z = -2.1 + Math.abs(Math.cos(i * 11.73)) * 4.2;
+      const length = .12 + hash(i * 2.7) * .1;
+      positions.set([x, y, z, x, y - length, z], i * 6);
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     geometry.setDrawRange(0, 0);
-    const points = new THREE.Points(geometry, new THREE.PointsMaterial({ color: colors.water, size: 0.045, transparent: true, opacity: 0.68 }));
-    group.add(points);
-    rainPoints = points;
+    const drops = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({
+      color: colors.water, transparent: true, opacity: .55
+    }));
+    // Rain must not be culled when the group is rotated past the slab's bounds.
+    drops.frustumCulled = false;
+    group.add(drops);
+    rainPoints = drops;
+  }
+
+  /** Number of drops currently drawn; 0 means the animation loop can stop. */
+  function visibleDrops() {
+    return Math.round(Math.min(RAIN_DROPS, (rainAmount + extraRain) * 6));
+  }
+
+  function stepRain(delta) {
+    const attribute = rainPoints.geometry.getAttribute("position");
+    const array = attribute.array;
+    const fall = delta * 3.4;
+    for (let i = 0; i < visibleDrops() * 2; i += 1) {
+      array[i * 3 + 1] -= fall;
+    }
+    // Wrap a drop only once its whole streak has passed the ground, so none blink out midair.
+    for (let i = 0; i < visibleDrops(); i += 1) {
+      if (array[i * 6 + 1] < 0) {
+        const length = array[i * 6 + 1] - array[i * 6 + 4];
+        array[i * 6 + 1] = RAIN_TOP;
+        array[i * 6 + 4] = RAIN_TOP - length;
+      }
+    }
+    attribute.needsUpdate = true;
   }
 
   function disposeGroup(group) {
@@ -1592,50 +1862,137 @@ svg {
     }
   }
 
-  function coverageFor(park, amount) {
-    return Math.min(park.maxCoverage, park.baseCoverage + amount * park.response);
+  /** Modelled state for the selected park, or null before /api/greenness has answered. */
+  function greenState() {
+    if (!greenData) return null;
+    return greenData.parks[selectedParkKey] || null;
   }
 
-  function greenProbability(park, rainProbability) {
-    const p = rainProbability / 100;
-    return p * park.greenIfRain + (1 - p) * park.greenIfDry;
+  /**
+   * Green cover (0-100) for the selected park at the current what-if setting.
+   *
+   * Nothing here is computed in the browser: the water balance and the turf response are
+   * modelled on the server across the past 92 days and the forecast window, and the slider
+   * simply picks a point off a pre-computed curve. Greenness is deliberately *not* a
+   * function of the rainfall total alone - that was the old model's central mistake.
+   */
+  function coverage() {
+    const state = greenState();
+    if (!state) return null;
+    if (!extraRain) return 100 * state.greenness.median;
+    const point = state.whatIf.spread.find((entry) => entry.extraMm === extraRain);
+    return 100 * (point ? point.greenness : state.greenness.median);
   }
 
+  /** Coverage to draw when the model has not loaded: dry, so the page never flatters. */
+  function coverageOrDefault() {
+    const value = coverage();
+    return value == null ? 8 : value;
+  }
+
+  /**
+   * Paint the modelled state onto the scene.
+   *
+   * The three surfaces respond differently, which is the point: turf browns first and hardest,
+   * bare soil shows through once the sward thins, and the trees barely move because their roots
+   * reach water the grass cannot. A park in drought does not fade uniformly to beige - the
+   * grass goes, and the canopy stays.
+   */
   function updateLawn() {
     if (!lawnMesh) return;
-    const park = parks[selectedParkKey];
-    const coverage = coverageFor(park, rainAmount);
+    const coverage = coverageOrDefault();
     const wetColor = colors.green.clone().lerp(colors.water, .035);
-    const dryColor = colors.dry.clone().lerp(colors.trunk, .07);
+    const dryColor = colors.dry.clone();
     const surfaceColors = lawnMesh.geometry.getAttribute("color");
     moistureThresholds.forEach((threshold, index) => {
       const softness = Math.max(0, Math.min(1, (coverage - threshold + 18) / 36));
       const tone = surfaceVariation[index] * .045;
-      const localDry = dryColor.clone().offsetHSL(0, 0, tone);
+      // Below the driest quarter the turf has gone entirely and the ground itself shows.
+      const bare = Math.max(0, Math.min(1, (threshold - coverage - 30) / 45));
+      const localDry = dryColor.clone().lerp(colors.soil, bare * .8).offsetHSL(0, 0, tone);
       const localWet = wetColor.clone().offsetHSL(0, 0, tone * .7);
       const mixed = localDry.lerp(localWet, softness);
       surfaceColors.setXYZ(index, mixed.r, mixed.g, mixed.b);
     });
     surfaceColors.needsUpdate = true;
+
     if (grassBladeMesh) {
+      const dummy = new THREE.Object3D();
       bladeThresholds.forEach((threshold, index) => {
         const softness = Math.max(0, Math.min(1, (coverage - threshold + 14) / 28));
         const tone = bladeVariation[index] * .055;
         const bladeDry = dryColor.clone().offsetHSL(0, 0, tone - .02);
         const bladeWet = wetColor.clone().offsetHSL(0, 0, tone);
         grassBladeMesh.setColorAt(index, bladeDry.lerp(bladeWet, softness));
+
+        // Dormant grass is short as well as pale: it stops growing while mowing and footfall
+        // keep taking it down. Scaling height with the local greenness makes a brown park look
+        // scalped and thin rather than merely repainted.
+        const base = bladeBaseScale[index];
+        if (base && bladePark) {
+          const height = base.height * (.42 + .58 * softness);
+          dummy.position.set(base.x, heightAt(bladePark, base.x, base.z) + .01, base.z);
+          dummy.rotation.set(0, base.spin, base.tilt);
+          dummy.scale.set(base.width, height, base.width);
+          dummy.updateMatrix();
+          grassBladeMesh.setMatrixAt(index, dummy.matrix);
+        }
       });
       if (grassBladeMesh.instanceColor) grassBladeMesh.instanceColor.needsUpdate = true;
+      grassBladeMesh.instanceMatrix.needsUpdate = true;
     }
-    if (rainPoints) {
-      const visibleDrops = Math.round(Math.min(180, rainAmount * 6));
-      rainPoints.geometry.setDrawRange(0, visibleDrops);
-    }
+
+    // Deep-rooted trees lose far less colour than turf, so the canopy only shifts across the
+    // top third of the range - enough to see, not enough to pretend the trees died too.
+    const canopyStress = 1 - Math.max(0, Math.min(1, coverage / 55));
+    treeCrowns.forEach(({ mesh, tone }) => {
+      mesh.material.color
+        .copy(colors.foliage).lerp(colors.foliageDry, canopyStress * .55)
+        .multiplyScalar(tone);
+    });
+
+    if (rainPoints) rainPoints.geometry.setDrawRange(0, visibleDrops() * 2);
     renderer.render(scene, camera);
+    startRain();
     updateLabels();
   }
 
+  /**
+   * Runs only while there are drops to fall, and stops itself when the slider returns to zero
+   * or the tab is hidden - the scene is otherwise event-driven and should not hold a frame loop
+   * open for nothing.
+   */
+  let rainFrame = null;
+  let rainClock = 0;
+
+  function startRain() {
+    if (reducedMotion || rainFrame != null || !rainPoints || !visibleDrops()) return;
+    rainClock = performance.now();
+    const tick = (now) => {
+      const delta = Math.min(.05, (now - rainClock) / 1000);
+      rainClock = now;
+      if (document.hidden || !visibleDrops() || !rainPoints) {
+        rainFrame = null;
+        return;
+      }
+      stepRain(delta);
+      renderer.render(scene, camera);
+      rainFrame = requestAnimationFrame(tick);
+    };
+    rainFrame = requestAnimationFrame(tick);
+  }
+
   function buildPark() {
+    // The old scene's materials are about to be disposed, so drop every reference into it
+    // before rebuilding - a stale crown material would be recoloured after disposal.
+    if (rainFrame != null) {
+      cancelAnimationFrame(rainFrame);
+      rainFrame = null;
+    }
+    treeCrowns = [];
+    rainPoints = null;
+    lawnMesh = null;
+    grassBladeMesh = null;
     disposeGroup(parkGroup);
     const park = parks[selectedParkKey];
     addBase(parkGroup, park);
@@ -1645,6 +2002,9 @@ svg {
     if (park.type === "kensington") decorateKensington(parkGroup, park);
     if (park.type === "greenwich") decorateGreenwich(parkGroup, park);
     addRain(parkGroup);
+    // Each park is a different shape, so the framing is re-measured rather than reused.
+    extent = null;
+    frameCamera();
     updateLawn();
     if (!reducedMotion) {
       const start = performance.now();
@@ -1660,21 +2020,244 @@ svg {
     }
   }
 
+  const percent = (fraction) => Math.round(100 * fraction) + "%";
+
   function updateLabels() {
     const park = parks[selectedParkKey];
     const forecast = forecasts[selectedForecastKey];
-    const coverage = coverageFor(park, rainAmount);
-    const probability = greenProbability(park, forecast.probability);
-    els.rainValue.textContent = rainAmount.toFixed(1);
-    els.statRain.textContent = rainAmount.toFixed(1) + " mm";
+    const state = greenState();
+
+    els.rainValue.textContent = String(extraRain);
+    els.statRain.textContent = forecast.amount == null ? "—" : forecast.amount.toFixed(1) + " mm";
     els.sourceLabel.textContent = forecast.label;
-    els.statRainProb.textContent = forecast.probability.toFixed(2).replace(/\.00$/, "") + "%";
-    els.statGreenProb.textContent = probability.toFixed(1) + "%";
-    els.parkLabel.textContent = park.name + " model";
     els.summaryName.textContent = park.name;
-    els.summaryDetail.textContent = park.detail + " · " + Math.round(coverage) + "% modeled green coverage at " + rainAmount.toFixed(1) + " mm";
+    els.summaryDetail.textContent = park.detail;
     els.sceneKey.textContent = park.landmarks;
-    canvas.setAttribute("aria-label", "Three-dimensional rainfall model of " + park.name + ", showing " + Math.round(coverage) + " percent green lawn coverage with " + rainAmount.toFixed(1) + " millimetres of rain.");
+
+    if (!state) {
+      els.statGreen.textContent = "—";
+      els.statSit.textContent = "—";
+      els.statGreenProb.textContent = "—";
+      canvas.setAttribute("aria-label", "Three-dimensional model of " + park.name + "; green cover not yet loaded.");
+      return;
+    }
+
+    const shown = coverage();
+    const arrival = new Date(greenData.arrival + "T00:00:00")
+      .toLocaleDateString([], { month: "long", day: "numeric" });
+
+    els.statGreen.textContent = Math.round(shown) + "%";
+    els.greenNote.textContent = extraRain
+      ? "With " + extraRain + " mm more rain, spread evenly"
+      : state.looksGreen.verdict + " · " + state.looksGreen.detail;
+    els.statSit.textContent = state.goodToSitOn.verdict;
+    els.sitNote.textContent = state.goodToSitOn.detail;
+    els.statGreenProb.textContent = percent(state.probablyGreen);
+    els.probNote.textContent = "Needs " + percent(greenData.model.greenThreshold)
+      + " cover · " + greenData.ensemble.members + " ensemble members";
+
+    els.greenTitle.textContent = "Will " + park.name + " be green on " + arrival + "?";
+    els.greenVerdict.textContent = state.looksGreen.verdict;
+    els.greenRange.textContent = "Modelled green cover " + percent(state.greenness.median)
+      + " (ensemble range " + percent(state.greenness.p10) + "–" + percent(state.greenness.p90)
+      + "). Watered lawns reach " + percent(state.watered.greenness)
+      + ", but only " + percent(state.watered.fraction) + " of this park is watered right now"
+      + ", so unwatered grass at " + percent(state.watered.unwateredGreenness) + " dominates the view.";
+
+    els.drought.textContent = droughtLine();
+    els.need.textContent = needLine(state);
+    els.sitNeed.textContent = sitNeedLine(state);
+    drawSitCases(state);
+    els.whatIf.textContent = whatIfLine(state);
+    els.ban.textContent = banLine();
+
+    drawSpark(state);
+    canvas.setAttribute("aria-label", "Three-dimensional model of " + park.name
+      + ", showing " + Math.round(shown) + " percent modelled green cover on arrival.");
+  }
+
+  function droughtLine() {
+    const c = greenData.context;
+    const since = c.daysSinceSoilWetting == null
+      ? "no single fall in the past " + c.historyDays + " days reached the "
+        + c.wettingThresholdMm + " mm it takes to wet the soil through the grass canopy"
+      : "last soil-wetting rain was " + c.daysSinceSoilWetting + " days ago";
+    return "Past " + c.historyDays + " days: " + c.rain90.toFixed(1) + " mm of rain against "
+      + c.et090.toFixed(0) + " mm of evaporation, a " + Math.abs(c.balance90).toFixed(0)
+      + " mm deficit. " + since.charAt(0).toUpperCase() + since.slice(1)
+      + ". Topsoil now " + c.soilMoisture.shallow + " " + c.soilMoisture.units + ".";
+  }
+
+  function needLine(state) {
+    const green = state.whatItWouldTake.toLookGreen;
+    const greening = state.whatItWouldTake.toStartGreening;
+    if (green.reachable) {
+      return "What it would take: " + green.extraMm + " mm more rain ("
+        + green.perDayMm + " mm a day) to look properly green by arrival.";
+    }
+    if (greening.reachable) {
+      return "What it would take: no amount of rain can make it properly green in the days"
+        + " left — grass cannot regrow that fast. " + greening.extraMm + " mm ("
+        + greening.perDayMm + " mm a day) would at least bring visible green through the straw.";
+    }
+    return "What it would take: more than the remaining days can deliver. The sward needs"
+      + " weeks of moisture, not a wet weekend.";
+  }
+
+  /**
+   * The same question for sitting on rather than looking at, which is a lower bar and often a
+   * much closer one: thin green cover over damp soil is pleasant to sit on and unimpressive
+   * to look at. Quoted as a spread-evenly figure to match the greenness line above it, with
+   * the cases list underneath showing how much less it takes when the rain arrives in
+   * fewer, heavier falls.
+   */
+  function sitNeedLine(state) {
+    const sit = state.whatItWouldTake.toSitOn;
+    const some = state.whatItWouldTake.toSitOnAtAll;
+    if (sit.reachable) {
+      return "To be good to sit on: " + sit.extraMm + " mm more rain ("
+        + sit.perDayMm + " mm a day) — a lower bar than looking green, and reached sooner.";
+    }
+    if (some.reachable) {
+      return "To be good to sit on: spread evenly, no amount of rain gets to a confident yes,"
+        + " because rain heavy enough to soak in every day for " + greenData.window.days
+        + " days leaves it muddy rather than pleasant. " + some.extraMm + " mm ("
+        + some.perDayMm + " mm a day) would make it usable. Fewer, heavier falls do better:";
+    }
+    return "To be good to sit on: not reachable from here in the days left, however the rain"
+      + " arrives. The closest any pattern gets:";
+  }
+
+  /**
+   * One line per rainfall pattern: the smallest total that would make the park good to sit
+   * on, or - where no total does - how close that pattern gets and at what point more rain
+   * starts making it worse. Both halves are worth showing. A pattern that tops out just
+   * short is a different answer from one that cannot get near, and the totals differ by a
+   * factor of several between patterns, which is the whole point of listing them separately.
+   */
+  function drawSitCases(state) {
+    const list = els.sitCases;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    const ceiling = greenData.model.maxExtraMm;
+    const bar = greenData.model.sitThreshold;
+    (state.sitCases || []).forEach((item) => {
+      const line = document.createElement("li");
+      // A single fall needs no breakdown: the total is the depth of the fall.
+      const breakdown = (perFall) => (item.falls === 1
+        ? "" : " (" + item.falls + " × " + perFall + " mm)");
+      // A total can only be met by weather that exists. London's whole August average is
+      // around 50 mm, so a single fall past that is worth calling out rather than quoting
+      // as if it were a forecast.
+      const plausibility = (perFall) => (perFall > 60
+        ? " That is more rain in one day than London usually gets in a month, so treat it as"
+          + " arithmetic rather than a possibility." : "");
+      if (item.reachable) {
+        line.textContent = item.extraMm + " mm more, as " + item.label
+          + breakdown(item.perFallMm) + " — comfortable to sit on, though still only "
+          + item.looksGreen.toLowerCase() + " to look at." + plausibility(item.perFallMm);
+      } else {
+        line.className = "is-short";
+        // Shown to a decimal here, because a peak of 59.7% rounds to the 60% bar it just
+        // failed to clear, and "60%, just about" reads like a contradiction.
+        line.textContent = item.label.charAt(0).toUpperCase() + item.label.slice(1)
+          + ": never quite gets there. The best it can do is "
+          + (item.peakSit * 100).toFixed(1) + "% against the " + percent(bar)
+          + " needed, " + item.peakVerdict.toLowerCase() + ", at " + item.peakMm + " mm"
+          + breakdown(item.peakPerFallMm)
+          + (item.peakMm >= ceiling
+            ? ", and it is still short at the " + ceiling + " mm limit of the search."
+            : ", and more rain than that makes it worse rather than better.")
+          + plausibility(item.peakPerFallMm);
+      }
+      list.appendChild(line);
+    });
+  }
+
+  function whatIfLine(state) {
+    if (!extraRain) {
+      return "Drag the slider to add rainfall and see how little late rain achieves.";
+    }
+    const spread = state.whatIf.spread.find((entry) => entry.extraMm === extraRain);
+    const late = state.whatIf.late.find((entry) => entry.extraMm === extraRain);
+    if (!spread || !late) return "";
+    const days = state.whatIf.lateDays;
+    const gap = spread.greenness - late.greenness;
+    const comparison = Math.abs(gap) < 0.02
+      ? "Arriving all in the last " + days + " days makes little difference at this total."
+      : gap > 0
+        ? "Arriving all in the last " + days + " days instead: only "
+          + percent(late.greenness) + " — the grass has no time to use it."
+        : "Spread that thinly it is worse than a burst (" + percent(late.greenness)
+          + "), because falls under " + greenData.model.canopyThresholdMm
+          + " mm never get past the canopy to the soil.";
+    return extraRain + " mm more, spread across the window: " + percent(spread.greenness)
+      + " cover. " + comparison;
+  }
+
+  function banLine() {
+    const ban = greenData.hosepipeBan;
+    if (!ban.inForce) return greenData.model.caveat;
+    const since = new Date(ban.since + "T00:00:00")
+      .toLocaleDateString([], { month: "long", day: "numeric" });
+    return "A " + ban.authority + " hosepipe ban has been in force since " + since
+      + ", so the watered showpiece lawns that normally stay green through a drought are"
+      + " mostly not being watered. " + greenData.model.caveat;
+  }
+
+  /**
+   * Green cover over the past 92 days and ahead to arrival, with a p10-p90 ensemble fan over
+   * the forecast portion. Drawn as raw SVG rather than a chart library because the page has
+   * no build step and this is one polyline and one filled band.
+   */
+  function drawSpark(state) {
+    const series = state.series;
+    const svg = els.spark;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    if (!series.length) return;
+
+    const W = 600;
+    const H = 120;
+    const x = (index) => (index / Math.max(1, series.length - 1)) * W;
+    const y = (value) => H - 6 - (H - 16) * Math.max(0, Math.min(1, value));
+    const node = (name, attributes) => {
+      const element = document.createElementNS("http://www.w3.org/2000/svg", name);
+      Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
+      return element;
+    };
+
+    const threshold = greenData.model.greenThreshold;
+    svg.appendChild(node("line", {
+      x1: 0, x2: W, y1: y(threshold), y2: y(threshold),
+      stroke: "currentColor", "stroke-dasharray": "4 4", "stroke-opacity": ".35"
+    }));
+
+    const forecastStart = series.findIndex((day) => day.kind === "forecast");
+    if (forecastStart > 0) {
+      svg.appendChild(node("line", {
+        x1: x(forecastStart), x2: x(forecastStart), y1: 0, y2: H,
+        stroke: "currentColor", "stroke-opacity": ".25"
+      }));
+      const fan = series.slice(forecastStart).filter((day) => day.p10 != null);
+      if (fan.length > 1) {
+        const upper = fan.map((day, i) => x(forecastStart + i) + "," + y(day.p90));
+        const lower = fan.map((day, i) => x(forecastStart + i) + "," + y(day.p10)).reverse();
+        svg.appendChild(node("polygon", {
+          points: upper.concat(lower).join(" "),
+          fill: cssColor("#lrp-palette-green"), "fill-opacity": ".22"
+        }));
+      }
+    }
+
+    svg.appendChild(node("polyline", {
+      points: series.map((day, i) => x(i) + "," + y(day.greenness)).join(" "),
+      fill: "none", stroke: cssColor("#lrp-palette-green"), "stroke-width": "2"
+    }));
+
+    const span = (iso) => new Date(iso + "T00:00:00")
+      .toLocaleDateString([], { month: "short", day: "numeric" });
+    els.sparkFrom.textContent = span(series[0].date);
+    els.sparkMid.textContent = forecastStart > 0 ? span(series[forecastStart].date) : "today";
+    els.sparkTo.textContent = span(series[series.length - 1].date);
   }
 
   function selectPark(key) {
@@ -1688,11 +2271,11 @@ svg {
   }
 
   function selectForecast(key) {
-    selectedForecastKey = key;
-    const forecast = forecasts[key];
-    rainAmount = forecast.amount;
-    els.rain.value = forecast.amount.toFixed(1);
-    els.sourceRows.forEach((row) => row.classList.toggle("is-selected", row.dataset.sourceRow === key));
+    selectedForecastKey = forecasts[key] ? key : "ensemble";
+    // The source choice no longer moves the grass: green cover comes from the modelled water
+    // balance, not from whichever forecast is on screen. It changes the rain shown falling.
+    rainAmount = forecasts[selectedForecastKey].amount || 0;
+    els.sourceRows.forEach((row) => row.classList.toggle("is-selected", row.dataset.sourceRow === selectedForecastKey));
     updateLawn();
   }
 
@@ -1701,19 +2284,124 @@ svg {
     renderer.render(scene, camera);
   }
 
+  const VIEW_DIR = new THREE.Vector3(8.2, 6.4, 9.2).normalize();
+  /** Fraction of the frame left as air, so nothing grazes an edge. */
+  const FRAME_MARGIN = 1.05;
+
+  /**
+   * The points the camera has to keep in shot, measured from what was actually built rather
+   * than kept as constants. Every hand-maintained version of these extents drifted out of step
+   * with the geometry: the tree lines sit outside the lawn boundary, crowns lean and overhang,
+   * Greenwich stands on a hill, and the soil slab hangs below the turf.
+   */
+  let extent = null;
+
+  function measureExtent() {
+    // Measured square-on and at full size, so the answer does not depend on which way the park
+    // happens to be turned or on where the entry animation has got to.
+    const spin = parkGroup.rotation.y;
+    const scale = parkGroup.scale.x;
+    parkGroup.rotation.y = 0;
+    parkGroup.scale.setScalar(1);
+    parkGroup.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    parkGroup.children.forEach((child) => {
+      // The rain is excluded on purpose: it fills the sky by design, so including it framed
+      // the weather instead of the park.
+      if (child !== rainPoints) box.expandByObject(child);
+    });
+    parkGroup.rotation.y = spin;
+    parkGroup.scale.setScalar(scale);
+    parkGroup.updateMatrixWorld(true);
+    if (box.isEmpty()) box.set(new THREE.Vector3(-3.6, -.4, -2), new THREE.Vector3(3.6, 1.1, 2));
+
+    const flat = [[box.min.x, box.min.z], [box.min.x, box.max.z],
+      [box.max.x, box.min.z], [box.max.x, box.max.z]];
+    const radius = Math.max(...flat.map(([x, z]) => Math.hypot(x, z)));
+    // Perspective view: the group is free to spin under the arrow keys, so the envelope is a
+    // cylinder sampled around its rim - turning the park can then never push it out of frame.
+    const ring = Array.from({ length: 24 }, (_, i) => (i / 24) * Math.PI * 2)
+      .flatMap((angle) => [box.min.y, box.max.y].map((y) =>
+        new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius)));
+    // Plan view looks straight down and does not spin, so the box is a far tighter envelope
+    // than a cylinder - a park is half as deep as it is wide.
+    const corners = flat.flatMap(([x, z]) =>
+      [box.min.y, box.max.y].map((y) => new THREE.Vector3(x, y, z)));
+    // The lawn outline carrying the tree line on top of it and the soil slab underneath: the
+    // silhouette a viewer actually sees. Centring on anything looser - a box or a cylinder -
+    // balances the frame around a near corner that no lawn, tree or slab ever occupies, which
+    // left the park riding high with a third of the canvas empty beneath it.
+    const silhouette = parks[selectedParkKey].boundary.flatMap(([x, z]) =>
+      [box.min.y, box.max.y].map((y) => new THREE.Vector3(x, y, z)));
+    return { ring, corners, silhouette };
+  }
+
+  /**
+   * Pull the camera in until the park fills the frame.
+   *
+   * The distance used to be a fixed vector, which meant a wide pane showed a small park adrift
+   * in empty space - the vertical field of view was doing all the cropping and the horizontal
+   * room went to waste. Fitting the frame to the scene fills whichever shape the canvas happens
+   * to be, from a wide desktop pane to a narrow phone one.
+   *
+   * The fit is iterative because the projection is perspective, and no closed form over the
+   * whole envelope survives that: the near corner of the park is far closer to the camera than
+   * the point being aimed at, so it magnifies more and reaches further down the frame than any
+   * orthographic estimate of the silhouette predicts. Solving it on paper put the park's near
+   * edge a clear 40px off the bottom of the canvas. Measuring where the envelope actually lands
+   * in clip space, then backing off and re-aiming, converges in a handful of passes and is
+   * indifferent to what the geometry does next.
+   */
+  function frameCamera() {
+    const e = extent || (extent = measureExtent());
+    const spin = new THREE.Matrix4().makeRotationY(parkGroup.rotation.y);
+    const turn = (points) => points.map((point) => point.clone().applyMatrix4(spin));
+    // Distance is fitted to the whole spin envelope so no rotation can crop the park; the
+    // centring follows the real outline, so the frame is balanced around what is actually
+    // drawn rather than around a box corner no lawn, tree or slab ever reaches.
+    const bounding = turn(planView ? e.corners : e.ring);
+    const solid = turn(e.silhouette);
+    const direction = planView ? new THREE.Vector3(0, 1, 0.001).normalize() : VIEW_DIR;
+
+    let distance = 12;
+    let aim = 0;
+    for (let pass = 0; pass < 12; pass += 1) {
+      camera.position.copy(direction).multiplyScalar(distance).setY(
+        direction.y * distance + (planView ? 0 : aim));
+      camera.lookAt(0, planView ? 0 : aim, 0);
+      camera.updateMatrixWorld();
+      let worst = 0;
+      let top = -Infinity;
+      let bottom = Infinity;
+      bounding.forEach((point) => {
+        const ndc = point.clone().project(camera);
+        worst = Math.max(worst, Math.abs(ndc.x), Math.abs(ndc.y));
+      });
+      solid.forEach((point) => {
+        const y = point.clone().project(camera).y;
+        top = Math.max(top, y);
+        bottom = Math.min(bottom, y);
+      });
+      // Clip space runs -1..1, so `worst` is directly how much too big the scene is drawn.
+      const rescale = Math.max(worst, 1e-3) * FRAME_MARGIN;
+      // Camera and aim point move up together, which shifts the image down the frame without
+      // changing the angle. So lift them by however far the envelope sits above the middle,
+      // converted from clip space back into metres.
+      const drift = (top + bottom) / 2
+        * distance * Math.tan((camera.fov * Math.PI / 180) / 2)
+        / Math.hypot(VIEW_DIR.x, VIEW_DIR.z);
+      if (Math.abs(rescale - 1) < 0.002 && Math.abs(drift) < 0.002) break;
+      distance *= rescale;
+      if (!planView) aim += drift;
+    }
+  }
+
   function setView() {
     planView = !planView;
     els.view.setAttribute("aria-pressed", String(planView));
     els.view.textContent = planView ? "Perspective" : "Plan view";
-    if (planView) {
-      camera.position.set(0, 10.5, .01);
-      camera.lookAt(0, 0, 0);
-      parkGroup.rotation.y = 0;
-    } else {
-      camera.position.set(8.2, 6.4, 9.2);
-      camera.lookAt(0, 0, 0);
-      parkGroup.rotation.y = -.3;
-    }
+    parkGroup.rotation.y = planView ? 0 : -.3;
+    frameCamera();
     renderer.render(scene, camera);
   }
 
@@ -1723,60 +2411,100 @@ svg {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    frameCamera();
     renderer.render(scene, camera);
   }
 
   els.parkButtons.forEach((button) => button.addEventListener("click", () => selectPark(button.dataset.park)));
   els.source.addEventListener("change", () => selectForecast(els.source.value));
   els.rain.addEventListener("input", () => {
-    rainAmount = Number(els.rain.value);
+    extraRain = Number(els.rain.value);
     updateLawn();
   });
   els.left.addEventListener("click", () => rotate(-0.22));
   els.right.addEventListener("click", () => rotate(0.22));
   els.view.addEventListener("click", setView);
 
+  const shortDate = (iso) => new Date(iso + "T00:00:00")
+    .toLocaleDateString([], { month: "short", day: "numeric" });
+
+  async function loadForecasts() {
+    const response = await fetch("/api/forecast", { cache: "no-store" });
+    if (!response.ok) throw new Error("forecast models unavailable");
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+
+    forecasts.ensemble = {
+      label: "Weighted across " + data.modelCount + " models · " + data.window.days
+        + " days to " + shortDate(data.tripStart),
+      amount: data.amount,
+      probability: data.probability
+    };
+    Object.entries(data.sources).forEach(([key, source]) => {
+      const note = "covers " + source.coverage
+        + (source.probabilityDays ? "" : " · publishes no rain probability");
+      forecasts[key] = { label: source.label + " · " + note, amount: source.amount, probability: source.probability };
+      const row = root.querySelector('[data-source-row="' + key + '"]');
+      if (!row) return;
+      const cells = row.querySelectorAll("td");
+      cells[1].textContent = source.amount.toFixed(1) + " mm";
+      // A model that publishes no probability gets a dash, never a derived stand-in.
+      cells[2].textContent = source.probability == null ? "not published" : source.probability.toFixed(0) + "%";
+      cells[3].textContent = Math.round(100 * source.weight) + "%";
+      const link = cells[0].querySelector("a");
+      link.textContent = source.label;
+      link.href = source.url;
+      let tag = cells[0].querySelector(".source-note");
+      if (!tag) {
+        tag = document.createElement("div");
+        tag.className = "source-note text-small text-muted";
+        cells[0].appendChild(tag);
+      }
+      tag.textContent = note;
+    });
+
+    root.querySelector("#lrp-window").textContent =
+      "Forecast window: " + shortDate(data.window.from) + " – " + shortDate(data.window.to);
+    const foot = root.querySelector("tfoot tr").children;
+    foot[1].textContent = data.amount.toFixed(1) + " mm";
+    foot[2].textContent = data.probability == null ? "—" : data.probability.toFixed(0) + "%";
+    return data;
+  }
+
+  async function loadGreenness() {
+    const response = await fetch("/api/greenness", { cache: "no-store" });
+    if (!response.ok) throw new Error("greenness model unavailable");
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    greenData = data;
+    return data;
+  }
+
   async function refreshForecasts() {
     const status = root.querySelector("#lrp-live-status");
     const button = root.querySelector("#lrp-refresh");
     button.disabled = true;
-    status.textContent = "Checking the five latest forecasts…";
+    status.textContent = "Running the water balance on the latest weather…";
+    // Settled rather than awaited in series: the rain table and the green model are useful
+    // independently, so one failing must not blank the other.
+    const [forecast, green] = await Promise.allSettled([loadForecasts(), loadGreenness()]);
     try {
-      const response = await fetch("/api/forecast", { cache: "no-store" });
-      if (!response.ok) throw new Error("Forecast service unavailable");
-      const data = await response.json();
-      forecasts.ensemble = { label: "Weighted ensemble · " + data.liveSources + "/5 live · " + data.window.days + " days to " + data.tripStart, amount: data.amount, probability: data.probability };
-      Object.entries(data.sources).forEach(([key, source]) => {
-        const note = source.status === "live"
-          ? "live · covers " + source.coverage
-          : "verified baseline · " + (source.reason || "unavailable");
-        forecasts[key] = { label: source.label + " · " + note, amount: source.amount, probability: source.probability };
-        const row = root.querySelector('[data-source-row="' + key + '"]');
-        if (row) {
-          const cells = row.querySelectorAll("td");
-          cells[1].textContent = source.amount.toFixed(1) + " mm";
-          cells[2].textContent = source.probability.toFixed(0) + "%";
-          const link = cells[0].querySelector("a");
-          link.textContent = source.label;
-          link.href = source.url;
-          let tag = cells[0].querySelector(".source-note");
-          if (!tag) {
-            tag = document.createElement("div");
-            tag.className = "source-note text-small text-muted";
-            cells[0].appendChild(tag);
-          }
-          tag.textContent = note;
-        }
-      });
-      const span = (iso) => new Date(iso + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" });
-      root.querySelector("#lrp-window").textContent = "Forecast window: " + span(data.window.from) + " – " + span(data.window.to);
-      const foot = root.querySelector("tfoot tr").children;
-      foot[1].textContent = data.amount.toFixed(1) + " mm";
-      foot[2].textContent = data.probability.toFixed(2).replace(/\.00$/, "") + "%";
-      status.textContent = "Updated " + new Date(data.updatedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) + " · " + data.liveSources + "/5 live";
+      if (green.status === "fulfilled") {
+        const data = green.value;
+        status.textContent = "Updated "
+          + new Date(data.updatedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+          + " · " + data.context.historyDays + " days of weather · "
+          + data.ensemble.members + " ensemble members";
+      } else if (forecast.status === "fulfilled") {
+        status.textContent = "Rain forecasts updated · green model unavailable";
+        els.greenRange.textContent = "The green model could not be reached, so no green"
+          + " estimate is shown. The rain table below is live.";
+      } else {
+        status.textContent = "Could not reach the forecast models";
+        els.greenRange.textContent = "No live data: neither the rain forecasts nor the green"
+          + " model could be reached. Nothing on this page is a stored estimate.";
+      }
       selectForecast(selectedForecastKey);
-    } catch (error) {
-      status.textContent = "Could not refresh · showing last verified forecast";
     } finally {
       button.disabled = false;
     }
@@ -1808,6 +2536,7 @@ svg {
   observer.observe(canvas);
   window.addEventListener("pagehide", () => {
     observer.disconnect();
+    if (rainFrame != null) cancelAnimationFrame(rainFrame);
     disposeGroup(parkGroup);
     renderer.dispose();
   }, { once: true });
