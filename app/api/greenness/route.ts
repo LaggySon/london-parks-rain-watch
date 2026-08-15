@@ -3,10 +3,10 @@ import {
   MODEL, PARKS, profile, createState, runPark, relativeWater,
   availableFractionFromTheta, sitVerdict, rainNeeded, satisfyingCases, percentile,
 } from "../../../lib/greenness.mjs";
+import { londonToday, resolveWindow } from "../../../lib/window.mjs";
 
 export const dynamic = "force-dynamic";
 
-const ARRIVAL = "2026-08-28";
 const LATITUDE = 51.5074;
 const LONGITUDE = -0.1278;
 const TIMEOUT_MS = 12000;
@@ -52,12 +52,6 @@ type Daily = {
   tmax: number | null;
   tmean: number | null;
 };
-
-function londonToday() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date());
-}
 
 /**
  * A reply, described well enough to diagnose from the outside.
@@ -291,8 +285,17 @@ async function fetchEnsemble(model: string) {
   return members;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const today = londonToday();
+  // The window the page asks about, defaulting to the trip this dashboard was built for.
+  // Rejected outright rather than clamped when no correction could make it answerable — a
+  // 400 naming the bad date is more use than a model run on dates nobody chose.
+  const requested = resolveWindow(new URL(request.url).searchParams, today);
+  if (requested.error) {
+    return NextResponse.json({ error: requested.error, limits: requested.limits }, { status: 400 });
+  }
+  const { from, arrival, notes, limits } = requested;
+
   const [weather, ...ensembleResults] = await Promise.allSettled([
     fetchWeather(),
     ...ENSEMBLES.map((model) => fetchEnsemble(model)),
@@ -314,10 +317,22 @@ export async function GET() {
 
   const { series, noon, units, attempts } = weather.value;
   const history = series.filter((day) => day.date < today);
-  const forecast = series.filter((day) => day.date >= today && day.date < ARRIVAL);
-  if (!history.length || !forecast.length) {
+  /**
+   * Everything between today and arrival, whether or not the counted window starts later.
+   *
+   * A water balance cannot skip time: if the window begins next Tuesday, this week's weather
+   * still decides what the ground is like when it does. So days before `from` are simulated
+   * as a run-up — they shape the state the window starts from — and only then left out of
+   * the window's rainfall totals and its what-if answers, which are questions about extra
+   * rain *inside* the window.
+   */
+  const ahead = series.filter((day) => day.date >= today && day.date < arrival);
+  const runUpDays = ahead.filter((day) => day.date < from);
+  const windowDays = ahead.filter((day) => day.date >= from);
+  if (!history.length || !windowDays.length) {
     return failed(`forecast window is empty — ${series.length} days returned,`
-      + ` ${series[0]?.date} to ${series[series.length - 1]?.date}, today ${today}`);
+      + ` ${series[0]?.date} to ${series[series.length - 1]?.date}, today ${today},`
+      + ` window ${from} to ${arrival}`);
   }
 
   // --- soil moisture: initialises the spin-up and then audits its answer
@@ -336,26 +351,29 @@ export async function GET() {
   // is too patchy to use (UKMO returned 2 of 16 days), so demand is shared across members
   // and only the rain differs. That understates the true spread a little, since a wet
   // member would also be a duller, cooler one.
-  const dates = forecast.map((day) => day.date);
+  // Members are asked to cover the run-up as well as the window, so each one carries its own
+  // rain right through rather than sharing a deterministic past and diverging only later.
+  const aheadDates = ahead.map((day) => day.date);
+  const dates = windowDays.map((day) => day.date);
   const members = ensembleResults
     .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
-    .filter((member) => dates.every((date) => member.byDate.has(date)));
+    .filter((member) => aheadDates.every((date) => member.byDate.has(date)));
   const ensembleErrors = ensembleResults
     .map((result, i) => (result.status === "rejected"
       ? `${ENSEMBLES[i]}: ${String(result.reason?.message ?? result.reason)}` : null))
     .filter(Boolean);
 
   const memberDays = members.map((member) =>
-    forecast.map((day) => ({ ...day, mm: member.byDate.get(day.date) as number })));
+    ahead.map((day) => ({ ...day, mm: member.byDate.get(day.date) as number })));
   const memberRainTotals = memberDays.map((days) =>
-    days.reduce((sum, day) => sum + day.mm, 0));
+    days.filter((day) => day.date >= from).reduce((sum, day) => sum + day.mm, 0));
 
   // --- drought context
   const rain90 = history.reduce((sum, day) => sum + day.mm, 0);
   const et090 = history.reduce((sum, day) => sum + (day.et0 ?? 0), 0);
   const last30 = history.slice(-30);
-  const forecastRain = forecast.reduce((sum, day) => sum + day.mm, 0);
-  const forecastEt0 = forecast.reduce((sum, day) => sum + (day.et0 ?? 0), 0);
+  const forecastRain = windowDays.reduce((sum, day) => sum + day.mm, 0);
+  const forecastEt0 = windowDays.reduce((sum, day) => sum + (day.et0 ?? 0), 0);
 
   // A fall smaller than the canopy threshold never reaches the soil, so "days since it
   // rained" is the wrong question — this is days since rain the grass could actually use.
@@ -397,11 +415,22 @@ export async function GET() {
       restricted: HOSEPIPE_BAN.inForce,
     };
 
-    // 2. Project the deterministic forecast for the headline series.
-    const projected = runPark(park, forecast, start);
-    const arrival = projected.series[projected.series.length - 1];
+    // 2. Walk the run-up, if the counted window starts later than today, so the window opens
+    //    on the ground the forecast says it will actually find. Empty when it starts today,
+    //    in which case this leaves the spun-up state untouched.
+    const runUp = runPark(park, runUpDays, start);
+    const windowStart = {
+      natural: runUp.natural,
+      irrigated: runUp.irrigated,
+      restricted: HOSEPIPE_BAN.inForce,
+    };
 
-    // 3. Project every ensemble member to get a distribution rather than one number.
+    // 3. Project the deterministic forecast across the window for the headline series.
+    const projected = runPark(park, windowDays, windowStart);
+    const atArrival = projected.series[projected.series.length - 1];
+
+    // 4. Project every ensemble member to get a distribution rather than one number. Members
+    //    run from today, run-up included, so their spread is the full forecast spread.
     const memberRuns = memberDays.map((days) => runPark(park, days, start).series);
     const finals = memberRuns.map((run) => run[run.length - 1].greenness);
     const spread = finals.length
@@ -412,7 +441,7 @@ export async function GET() {
         min: Math.min(...finals),
         max: Math.max(...finals),
       }
-      : { p10: null, median: arrival.greenness, p90: null, min: null, max: null };
+      : { p10: null, median: atArrival.greenness, p90: null, min: null, max: null };
 
     const probGreen = finals.length
       ? finals.filter((g) => g >= MODEL.GREEN_THRESHOLD).length / finals.length
@@ -425,15 +454,18 @@ export async function GET() {
       : null;
 
     const sitFinals = memberRuns.map((run) => run[run.length - 1].sit);
-    const sitMedian = sitFinals.length ? percentile(sitFinals, 0.5) : arrival.sit;
-    const verdict = sitVerdict(sitMedian, arrival.dryness, spread.median ?? arrival.greenness);
+    const sitMedian = sitFinals.length ? percentile(sitFinals, 0.5) : atArrival.sit;
+    const verdict = sitVerdict(sitMedian, atArrival.dryness, spread.median ?? atArrival.greenness);
 
-    // Daily series for the sparkline: observed history, then the forecast with a fan.
+    // Daily series for the sparkline: observed history, then everything from today to
+    // arrival with a fan. The run-up is drawn like any other forecast day — the line has to
+    // be continuous to mean anything — but flagged, so the page can show where the counted
+    // window begins when it is not today.
     const timeline = [
       ...spinUp.series.map((day: any) => ({
-        date: day.date, greenness: round(day.greenness), kind: "observed",
+        date: day.date, greenness: round(day.greenness), kind: "observed", inWindow: false,
       })),
-      ...projected.series.map((day: any, i: number) => {
+      ...[...runUp.series, ...projected.series].map((day: any, i: number) => {
         const across = memberRuns.map((run) => run[i].greenness);
         return {
           date: day.date,
@@ -441,6 +473,7 @@ export async function GET() {
           p10: across.length ? round(percentile(across, 0.1)) : null,
           p90: across.length ? round(percentile(across, 0.9)) : null,
           kind: "forecast",
+          inWindow: day.date >= from,
         };
       }),
     ];
@@ -448,7 +481,7 @@ export async function GET() {
     parks[park.key] = {
       name: park.name,
       greenness: {
-        deterministic: round(arrival.greenness),
+        deterministic: round(atArrival.greenness),
         p10: round(spread.p10),
         median: round(spread.median),
         p90: round(spread.p90),
@@ -457,33 +490,36 @@ export async function GET() {
       },
       probablyGreen: round(probGreen),
       probablyGreening: round(probGreening),
-      looksGreen: describeGreen(spread.median ?? arrival.greenness),
+      looksGreen: describeGreen(spread.median ?? atArrival.greenness),
       goodToSitOn: { score: round(sitMedian), ...verdict },
-      dryness: round(arrival.dryness),
-      recoveryCeiling: round(arrival.ceiling),
-      dormantDays: Math.round(arrival.dormantDays),
+      dryness: round(atArrival.dryness),
+      recoveryCeiling: round(atArrival.ceiling),
+      dormantDays: Math.round(atArrival.dormantDays),
       watered: {
         // What the watered and unwatered halves of the park look like separately.
-        fraction: round(arrival.irrigatedFraction),
+        fraction: round(atArrival.irrigatedFraction),
         unrestrictedFraction: park.irrigatedFraction,
-        greenness: round(arrival.irrigatedGreenness),
-        unwateredGreenness: round(arrival.naturalGreenness),
+        greenness: round(atArrival.irrigatedGreenness),
+        unwateredGreenness: round(atArrival.naturalGreenness),
         appliedMm: round(spinUp.irrigated.irrigationApplied, 1),
       },
+      // Extra rain is extra rain *inside the window*, so these all start from the state the
+      // window opens on rather than from today's.
       whatItWouldTake: {
-        toLookGreen: tidyNeed(rainNeeded(park, start, forecast)),
-        toStartGreening: tidyNeed(rainNeeded(park, start, forecast, GREENING_THRESHOLD)),
+        toLookGreen: tidyNeed(rainNeeded(park, windowStart, windowDays)),
+        toStartGreening: tidyNeed(
+          rainNeeded(park, windowStart, windowDays, GREENING_THRESHOLD)),
         // The sit-on-it bar is a different question from the colour bars and often a much
         // closer one, so it gets its own delta rather than being inferred from greenness.
         toSitOn: tidyNeed(
-          rainNeeded(park, start, forecast, MODEL.SIT_THRESHOLD, "sit")),
+          rainNeeded(park, windowStart, windowDays, MODEL.SIT_THRESHOLD, "sit")),
         toSitOnAtAll: tidyNeed(
-          rainNeeded(park, start, forecast, MODEL.SIT_MARGINAL_THRESHOLD, "sit")),
+          rainNeeded(park, windowStart, windowDays, MODEL.SIT_MARGINAL_THRESHOLD, "sit")),
       },
       // Concrete ways that bar could be met: the same question asked of five different
       // rainfall patterns, because spread-out rain and one soaking need very different totals.
-      sitCases: satisfyingCases(park, start, forecast).map(tidyCase),
-      whatIf: whatIfCurves(park, start, forecast),
+      sitCases: satisfyingCases(park, windowStart, windowDays).map(tidyCase),
+      whatIf: whatIfCurves(park, windowStart, windowDays),
       soil: {
         type: shape.soil.label,
         availableWaterMm: round(shape.taw, 1),
@@ -503,8 +539,14 @@ export async function GET() {
 
   return NextResponse.json({
     updatedAt: new Date().toISOString(),
-    arrival: ARRIVAL,
+    arrival,
     window: { from: dates[0], to: dates[dates.length - 1], days: dates.length },
+    /** How far ahead the data reaches, so the page can bound its own date pickers. */
+    limits,
+    /** Corrections applied to the dates that were asked for; empty when none were needed. */
+    notes,
+    /** Forecast days simulated before the window opens, so the ground it finds is right. */
+    runUpDays: runUpDays.length,
     context: {
       historyDays: history.length,
       rain90: round(rain90, 1),

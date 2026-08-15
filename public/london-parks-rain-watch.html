@@ -827,6 +827,19 @@ svg {
     <button class="btn btn-ghost" type="button" id="lrp-refresh">Check now</button>
   </div>
 
+  <div class="viz-controls date-controls" aria-label="Choose the dates to model">
+    <label class="form-label" for="lrp-from">
+      Count rain from
+      <input class="form-control" id="lrp-from" type="date">
+    </label>
+    <label class="form-label" for="lrp-arrival">
+      Arriving on
+      <input class="form-control" id="lrp-arrival" type="date">
+    </label>
+    <button class="btn btn-ghost" type="button" id="lrp-reset-dates">Reset dates</button>
+  </div>
+  <div class="text-small text-muted date-note" id="lrp-date-note" role="status">Rain is counted up to, but not including, the arrival day: rain falling as you walk in has not had time to change what you are looking at.</div>
+
   <div class="viz-controls park-picker" aria-label="Choose a park">
     <button class="btn btn-primary" type="button" data-park="hyde" aria-pressed="true">Hyde Park</button>
     <button class="btn" type="button" data-park="st-james" aria-pressed="false">St James’s</button>
@@ -980,6 +993,26 @@ svg {
 
   #london-parks-rain-3d .park-picker {
     justify-content: center;
+  }
+
+  /* Two dates and a reset sit on one line on a laptop and stack on a phone. Narrower than
+     the sliders below them, because a date input needs no room to be dragged. */
+  #london-parks-rain-3d .date-controls > .form-label {
+    min-width: min(100%, 150px);
+    flex: 0 1 190px;
+  }
+
+  #london-parks-rain-3d .date-controls > .btn {
+    align-self: end;
+    margin-bottom: 6px;
+  }
+
+  #london-parks-rain-3d .date-note {
+    margin-top: -.55rem;
+  }
+
+  #london-parks-rain-3d .date-note.is-correction {
+    color: var(--destructive);
   }
 
   #london-parks-rain-3d .scene-wrap {
@@ -1278,6 +1311,10 @@ svg {
   };
 
   const els = {
+    from: root.querySelector("#lrp-from"),
+    arrival: root.querySelector("#lrp-arrival"),
+    resetDates: root.querySelector("#lrp-reset-dates"),
+    dateNote: root.querySelector("#lrp-date-note"),
     source: root.querySelector("#lrp-source"),
     rain: root.querySelector("#lrp-rain"),
     rainValue: root.querySelector("#lrp-rain-value"),
@@ -2240,6 +2277,16 @@ svg {
     }));
 
     const forecastStart = series.findIndex((day) => day.kind === "forecast");
+    // Where the counted window opens, which is today unless the visitor moved it. The line
+    // has to keep running from today either way — a water balance cannot skip days — so the
+    // start of the window is marked rather than made the start of the chart.
+    const windowStart = series.findIndex((day) => day.inWindow);
+    if (windowStart > forecastStart) {
+      svg.appendChild(node("line", {
+        x1: x(windowStart), x2: x(windowStart), y1: 0, y2: H,
+        stroke: "currentColor", "stroke-opacity": ".3", "stroke-dasharray": "3 3"
+      }));
+    }
     if (forecastStart > 0) {
       svg.appendChild(node("line", {
         x1: x(forecastStart), x2: x(forecastStart), y1: 0, y2: H,
@@ -2264,7 +2311,8 @@ svg {
     const span = (iso) => new Date(iso + "T00:00:00")
       .toLocaleDateString([], { month: "short", day: "numeric" });
     els.sparkFrom.textContent = span(series[0].date);
-    els.sparkMid.textContent = forecastStart > 0 ? span(series[forecastStart].date) : "today";
+    els.sparkMid.textContent = (forecastStart > 0 ? span(series[forecastStart].date) : "today")
+      + (windowStart > forecastStart ? " · counting from " + span(series[windowStart].date) : "");
     els.sparkTo.textContent = span(series[series.length - 1].date);
   }
 
@@ -2436,11 +2484,83 @@ svg {
   const shortDate = (iso) => new Date(iso + "T00:00:00")
     .toLocaleDateString([], { month: "short", day: "numeric" });
 
+  /**
+   * The dates to ask about, or nothing at all before the first answer has come back.
+   *
+   * Empty inputs deliberately send no parameters rather than a guessed default: the trip
+   * this page was built for lives in the API, and asking for it by name here would be a
+   * second copy to keep in step. The inputs are filled in from whatever the API resolved,
+   * which is also how "Reset dates" works — clear both, ask again, take what comes back.
+   */
+  function windowQuery() {
+    const params = new URLSearchParams();
+    if (els.from.value) params.set("from", els.from.value);
+    if (els.arrival.value) params.set("arrival", els.arrival.value);
+    const query = params.toString();
+    return query ? "?" + query : "";
+  }
+
+  /**
+   * Show the resolved window in the pickers, and bound them to the days the forecast can
+   * actually reach, so an unanswerable date is awkward to pick rather than merely rejected.
+   *
+   * Both routes report the same window, and either may be the one that answered, so this
+   * takes whichever payload arrived. Corrections are shown rather than absorbed silently: a
+   * date that was moved is worth knowing about, since the numbers now answer a question
+   * slightly different from the one that was asked.
+   */
+  /** The standing explanation under the pickers, read back from the markup so there is one
+   *  copy of it rather than two to keep in step. Restored whenever nothing was corrected. */
+  const DATE_HINT = els.dateNote.textContent;
+
+  /**
+   * Bound both pickers to the days the forecast reaches. Applied from a refusal as well as
+   * from an answer: a page whose dates cannot be forecast — which is every page once the
+   * default trip is in the past — is exactly the page that needs working pickers most.
+   */
+  function applyLimits(limits) {
+    if (!limits) return;
+    [els.from, els.arrival].forEach((input) => {
+      input.min = limits.earliestFrom;
+      input.max = limits.latestArrival;
+    });
+  }
+
+  function syncWindow(data) {
+    if (!data || !data.window) return;
+    const arrival = data.arrival || data.tripStart;
+    applyLimits(data.limits);
+    els.from.value = data.window.from;
+    if (arrival) els.arrival.value = arrival;
+    const notes = data.notes || [];
+    els.dateNote.textContent = notes.length ? notes.join(" ") : DATE_HINT;
+    els.dateNote.classList.toggle("is-correction", notes.length > 0);
+  }
+
+  /**
+   * A failed request explained by the API rather than by this function. A 400 here is
+   * almost always a date the model cannot answer for, and its message says which one and
+   * why - far more use than a blanket "unavailable".
+   */
+  async function readOrThrow(response, fallback) {
+    const data = await response.json().catch(() => null);
+    if (data && data.error) {
+      const error = new Error(data.error);
+      // A 400 is a window nobody can forecast, which is the visitor's to fix; anything else
+      // is the upstream's. They belong in different places on the page, so they are marked
+      // apart here rather than guessed at from the wording later.
+      error.aboutTheWindow = response.status === 400;
+      // A refusal still says how far the forecast reaches, which is what the pickers need.
+      error.limits = data.limits;
+      throw error;
+    }
+    if (!response.ok) throw new Error(fallback);
+    return data;
+  }
+
   async function loadForecasts() {
-    const response = await fetch("/api/forecast", { cache: "no-store" });
-    if (!response.ok) throw new Error("forecast models unavailable");
-    const data = await response.json();
-    if (data.error) throw new Error(data.error);
+    const response = await fetch("/api/forecast" + windowQuery(), { cache: "no-store" });
+    const data = await readOrThrow(response, "forecast models unavailable");
 
     forecasts.ensemble = {
       label: "Weighted across " + data.modelCount + " models · " + data.window.days
@@ -2480,12 +2600,22 @@ svg {
   }
 
   async function loadGreenness() {
-    const response = await fetch("/api/greenness", { cache: "no-store" });
-    if (!response.ok) throw new Error("greenness model unavailable");
-    const data = await response.json();
-    if (data.error) throw new Error(data.error);
+    const response = await fetch("/api/greenness" + windowQuery(), { cache: "no-store" });
+    const data = await readOrThrow(response, "greenness model unavailable");
     greenData = data;
     return data;
+  }
+
+  /**
+   * Which window the green figures on screen are actually for, when this run produced none
+   * of its own. Without it the page reads as though they were for the dates in the picker.
+   */
+  function lastWindowPhrase() {
+    if (!greenData || !greenData.window) {
+      return ". Nothing green has been modelled yet.";
+    }
+    return ", so the figures here still describe " + shortDate(greenData.window.from)
+      + " – " + shortDate(greenData.window.to) + ", the last window that was.";
   }
 
   async function refreshForecasts() {
@@ -2497,6 +2627,19 @@ svg {
     // independently, so one failing must not blank the other.
     const [forecast, green] = await Promise.allSettled([loadForecasts(), loadGreenness()]);
     try {
+      // Either route resolves the same window, so the pickers follow whichever answered.
+      syncWindow(green.status === "fulfilled" ? green.value
+        : forecast.status === "fulfilled" ? forecast.value : null);
+
+      /**
+       * Said about the green figures when this run did not produce any.
+       *
+       * Applied after the redraw rather than during it. The redraw writes that line from
+       * whatever model run it last had, so a warning set here would be silently overwritten
+       * by the very figures it is warning about.
+       */
+      let stale = "";
+
       if (green.status === "fulfilled") {
         const data = green.value;
         status.textContent = "Updated "
@@ -2505,18 +2648,38 @@ svg {
           + data.ensemble.members + " ensemble members";
       } else if (forecast.status === "fulfilled") {
         status.textContent = "Rain forecasts updated · green model unavailable";
-        els.greenRange.textContent = "The green model could not be reached, so no green"
-          + " estimate is shown. The rain table below is live.";
+        stale = "The green model could not be reached, so no green estimate was made"
+          + lastWindowPhrase() + " The rain table below is live.";
+      } else if (green.reason && green.reason.aboutTheWindow) {
+        // Dates the model cannot answer for: said next to the dates, where they can be
+        // changed, and phrased as the API phrased them rather than as an outage.
+        status.textContent = "Waiting for dates that can be forecast";
+        applyLimits(green.reason.limits);
+        els.dateNote.textContent = green.reason.message;
+        els.dateNote.classList.add("is-correction");
+        stale = "Those dates were not modelled" + lastWindowPhrase();
       } else {
         status.textContent = "Could not reach the forecast models";
-        els.greenRange.textContent = "No live data: neither the rain forecasts nor the green"
-          + " model could be reached. Nothing on this page is a stored estimate.";
+        stale = "No live data: neither the rain forecasts nor the green model could be"
+          + " reached. Nothing on this page is a stored estimate.";
       }
       selectForecast(selectedForecastKey);
+      if (stale) els.greenRange.textContent = stale;
     } finally {
       button.disabled = false;
     }
   }
+
+  // A date change is a new question, so it re-runs both routes. `change` rather than
+  // `input`: a half-typed year is a date the model would refuse, and firing on every
+  // keystroke would refuse it noisily on the way to a perfectly good one.
+  els.from.addEventListener("change", refreshForecasts);
+  els.arrival.addEventListener("change", refreshForecasts);
+  els.resetDates.addEventListener("click", () => {
+    els.from.value = "";
+    els.arrival.value = "";
+    refreshForecasts();
+  });
 
   root.querySelector("#lrp-refresh").addEventListener("click", refreshForecasts);
   document.addEventListener("visibilitychange", () => {
