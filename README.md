@@ -2,7 +2,8 @@
 
 A live rainfall dashboard and Three.js visualisation for Hyde Park, St James's Park,
 Regent's Park, Kensington Gardens and Greenwich Park, answering one question for an
-arrival on **28 August 2026**: will the grass be green, and will it be any good to sit on?
+arrival on **28 August 2026** — or any other date you pick on the page: will the grass be
+green, and will it be any good to sit on?
 
 The honest answer for the current London drought is no, and most of this project exists to
 say so with numbers rather than to guess. An earlier version made green cover a linear
@@ -121,6 +122,34 @@ Per-model ET₀ is too patchy to use (UKMO returned 2 of 16 days), so **demand i
 members and only precipitation varies**. That understates the true spread a little, since a
 wetter member would also be a duller, cooler one.
 
+## Choosing the dates
+
+The page carries two date pickers, and both API routes take the same two parameters:
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `from` | today, Europe/London | First day counted |
+| `arrival` | `2026-08-28` | The day you get there |
+
+Rain is counted **up to but not including** the arrival day, so the last day of the window
+is the day before it. That is the long-standing convention here rather than an off-by-one:
+rain falling as you walk into the park has not had time to change what you are looking at.
+
+`lib/window.mjs` resolves the pair and is strict in one direction and forgiving in the
+other. Dates no correction can rescue — a malformed date, an arrival already past — are a
+`400` naming the offending value, because guessing would hide a typo. Dates that are merely
+out of reach are clamped and the clamp is reported in `notes`, which the page displays: the
+16-day forecast horizon is a property of Open-Meteo that no visitor can be expected to know.
+Every response also carries `limits`, which is what bounds the pickers on the page, so a
+refusal still tells the UI which dates would have worked.
+
+Moving the start of the window does not let the water balance skip time. `/api/greenness`
+simulates the days between today and `from` as a run-up and opens the window on the state
+they leave behind, so the modelled condition at arrival is the same whichever start you
+pick. What changes is what "extra rain" means: the what-if slider, the sit-on-it patterns
+and "what it would take" are all questions about rain *inside* the window, and the same
+50 mm behaves very differently spread over ten days, seven days or one.
+
 ## What the API returns
 
 `/api/greenness` reports, per park: green cover at arrival with the ensemble p10/median/p90,
@@ -154,6 +183,7 @@ soil near capacity for weeks greens grass and softens ground at the same time.
 
 ```bash
 node scripts/check-greenness.mjs
+node scripts/check-window.mjs
 ```
 
 Runs 55 dependency-free assertions against synthetic weather. Each names the published
@@ -165,6 +195,14 @@ three-month drought, the lag that makes eve-of-arrival rain worthless, published
 rates behaving as published (1 inch/week prevents dormancy, ¼ inch/week does not restore
 colour), capped green-up after a long drought, runoff on baked ground, the ordering between
 parks, the effect of a hosepipe ban, and the sit-on-it deltas and delivery patterns.
+
+The second script runs 30 assertions against the window resolver, which decides the dates
+the whole dashboard answers for and now takes them from a query string. It is pure and takes
+"today" as an argument, so every case is fixed in time. Covered: the arrival day being
+excluded from the window, defaults with no parameters at all, dates taken as asked, the
+forecast horizon clamped rather than refused, a start in the past or after arrival corrected
+and reported, and the refusals — a malformed date, a date that does not exist, an American
+date order, and an arrival that has already happened.
 
 ## Caveats
 

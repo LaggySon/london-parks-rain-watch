@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { resolveWindow } from "../../../lib/window.mjs";
 
 export const dynamic = "force-dynamic";
 
-const TRIP_START = "2026-08-28";
 const LATITUDE = 51.5074;
 const LONGITUDE = -0.1278;
 const TIMEOUT_MS = 8000;
@@ -66,19 +66,6 @@ type Source = {
   reason?: string;
 };
 
-/** Days from today (Europe/London) up to, but not including, the trip start. */
-function forecastWindow() {
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date());
-  const end = new Date(`${TRIP_START}T00:00:00Z`).getTime();
-  const dates: string[] = [];
-  for (let t = new Date(`${today}T00:00:00Z`).getTime(); t < end && dates.length < 30; t += 86400000) {
-    dates.push(new Date(t).toISOString().slice(0, 10));
-  }
-  return { dates, inWindow: new Set(dates) };
-}
-
 /** Weights over an arbitrary subset of the models, normalised to sum to 1. */
 function weightsOver(keys: Key[]) {
   const total = keys.reduce((sum, key) => sum + MODELS[key].share, 0);
@@ -137,8 +124,16 @@ async function fetchModels(inWindow: Set<string>) {
   return { sources, byDate };
 }
 
-export async function GET() {
-  const { dates, inWindow } = forecastWindow();
+export async function GET(request: Request) {
+  // The window is a request parameter, so the page can ask about a different trip without a
+  // redeploy. Dates that cannot be modelled are rejected here rather than turned into an
+  // empty forecast further down, where the reason would be lost.
+  const requested = resolveWindow(new URL(request.url).searchParams);
+  if (requested.error) {
+    return NextResponse.json({ error: requested.error, limits: requested.limits }, { status: 400 });
+  }
+  const { dates, arrival, notes, limits } = requested;
+  const inWindow: Set<string> = new Set(dates);
   const windowDays = dates.length;
 
   let sources: Record<Key, Source>;
@@ -199,8 +194,11 @@ export async function GET() {
 
   return NextResponse.json({
     updatedAt: new Date().toISOString(),
-    tripStart: TRIP_START,
+    tripStart: arrival,
     window: { from: dates[0], to: dates[dates.length - 1], days: windowDays },
+    /** How far the pickers on the page may reach, and any correction made to what they asked. */
+    limits,
+    notes,
     modelCount: KEYS.length,
     liveSources: withRain.length,
     amount: Number(amount.toFixed(2)),
